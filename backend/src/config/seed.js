@@ -1,0 +1,149 @@
+require('dotenv').config();
+const mongoose     = require('mongoose');
+const bcrypt       = require('bcryptjs');
+
+const User         = require('../models/User');
+const Ward         = require('../models/Ward');
+const Worker       = require('../models/Worker');
+const Complaint    = require('../models/Complaint');
+const Gamification = require('../models/Gamification');
+const Hotspot      = require('../models/Hotspot');
+const { TrainingModule } = require('../models/Training');
+const { Notification }   = require('../models/Notification');
+const logger       = require('../utils/logger');
+
+async function seed() {
+  const uri = process.env.MONGODB_URI || 'mongodb://localhost:27017/swachhanet';
+  await mongoose.connect(uri);
+  logger.info('Connected to MongoDB');
+
+  // Clean existing data
+  await Promise.all([
+    User.deleteMany({}), Ward.deleteMany({}), Worker.deleteMany({}),
+    Complaint.deleteMany({}), Gamification.deleteMany({}),
+    Hotspot.deleteMany({}), TrainingModule.deleteMany({}),
+    Notification.deleteMany({}),
+  ]);
+  logger.info('Cleared existing data');
+
+  // ── Wards ─────────────────────────────────────────────────────────────────
+  const ward = await Ward.create({
+    name: 'Ward 14 - Laxmi Road', ulbCode: 'PMC-14', city: 'Pune', state: 'Maharashtra',
+  });
+  const ward2 = await Ward.create({
+    name: 'Ward 7 - Nagar Road', ulbCode: 'PMC-07', city: 'Pune', state: 'Maharashtra',
+  });
+  logger.info('Wards seeded');
+
+  // ── Users ─────────────────────────────────────────────────────────────────
+  const citizenHash   = await bcrypt.hash('citizen123', 12);
+  const authorityHash = await bcrypt.hash('authority123', 12);
+
+  const citizen = await User.create({
+    name: 'Rahul Kumar', phone: '+919876543210', email: 'rahul@example.com',
+    passwordHash: citizenHash, role: 'citizen', wardId: ward._id, isVerified: true,
+    location: { type: 'Point', coordinates: [73.8567, 18.5204] },
+  });
+
+  const authority = await User.create({
+    name: 'Sneha Gupta', phone: '+919876543211', email: 'sneha@pmc.gov.in',
+    passwordHash: authorityHash, role: 'authority', wardId: ward._id, isVerified: true,
+  });
+
+  const citizen2 = await User.create({
+    name: 'Priya Shah', phone: '+919876543212', email: 'priya@example.com',
+    passwordHash: citizenHash, role: 'citizen', wardId: ward._id, isVerified: true,
+  });
+
+  logger.info('Users seeded');
+
+  // ── Workers ───────────────────────────────────────────────────────────────
+  const workers = await Worker.insertMany([
+    { name: 'Suresh Mane',   phone: '+919876543300', zone: 'Zone A', wardId: ward._id,  status: 'available', currentLocation: { type: 'Point', coordinates: [73.852, 18.521] } },
+    { name: 'Priya Kamble',  phone: '+919876543301', zone: 'Zone B', wardId: ward._id,  status: 'busy',      currentLocation: { type: 'Point', coordinates: [73.858, 18.519] } },
+    { name: 'Rajan Desai',   phone: '+919876543302', zone: 'Zone C', wardId: ward2._id, status: 'break',     currentLocation: { type: 'Point', coordinates: [73.862, 18.524] } },
+  ]);
+  logger.info('Workers seeded');
+
+  // ── Complaints ────────────────────────────────────────────────────────────
+  const complaintDefs = [
+    { issueType: 'full_dustbin',    lat: 18.5204, lng: 73.8567, priority: 2, status: 'pending',     userId: citizen._id  },
+    { issueType: 'illegal_dumping', lat: 18.5210, lng: 73.8580, priority: 3, status: 'in_progress', userId: citizen._id  },
+    { issueType: 'burning_waste',   lat: 18.5198, lng: 73.8555, priority: 3, status: 'pending',     userId: citizen2._id },
+    { issueType: 'missed_collection', lat: 18.5220, lng: 73.8600, priority: 1, status: 'resolved',  userId: citizen._id, resolvedAt: new Date() },
+    { issueType: 'overflowing_bin', lat: 18.5190, lng: 73.8540, priority: 2, status: 'assigned',   userId: citizen2._id },
+    { issueType: 'illegal_dumping', lat: 18.5215, lng: 73.8572, priority: 3, status: 'pending',    userId: citizen._id  },
+  ];
+
+  const complaints = await Complaint.insertMany(
+    complaintDefs.map(c => ({
+      userId:    c.userId,
+      wardId:    ward._id,
+      issueType: c.issueType,
+      status:    c.status,
+      priority:  c.priority,
+      location:  { type: 'Point', coordinates: [c.lng, c.lat] },
+      address:   'Laxmi Road, Pune, Maharashtra',
+      description: 'Reported by citizen via SwachhaNet app',
+      resolvedAt: c.resolvedAt,
+      aiResult: {
+        wasteType:    ['wet','dry','plastic','hazardous','mixed'][Math.floor(Math.random()*5)],
+        confidence:   +(0.65 + Math.random() * 0.30).toFixed(3),
+        modelVersion: 'v1.0',
+        processedAt:  new Date(),
+      },
+    }))
+  );
+  logger.info('Complaints seeded');
+
+  // ── Gamification ──────────────────────────────────────────────────────────
+  await Gamification.create({
+    userId: citizen._id, totalPoints: 640, level: 3,
+    badges: ['first_report', 'eco_learner', 'streak_7'],
+    reportsCount: 3, quizzesPassed: 2, streakDays: 7,
+  });
+  await Gamification.create({
+    userId: citizen2._id, totalPoints: 210, level: 2,
+    badges: ['first_report'], reportsCount: 2, quizzesPassed: 1, streakDays: 2,
+  });
+  logger.info('Gamification seeded');
+
+  // ── Hotspots ──────────────────────────────────────────────────────────────
+  await Hotspot.insertMany([
+    { wardId: ward._id, centroid: { type: 'Point', coordinates: [73.8575, 18.5207] }, complaintCount: 4, severityScore: 2.8, dominantType: 'illegal_dumping', periodDays: 7 },
+    { wardId: ward._id, centroid: { type: 'Point', coordinates: [73.8545, 18.5195] }, complaintCount: 2, severityScore: 1.5, dominantType: 'full_dustbin',    periodDays: 7 },
+  ]);
+  logger.info('Hotspots seeded');
+
+  // ── Training Modules ──────────────────────────────────────────────────────
+  await TrainingModule.insertMany([
+    { title: 'Waste Segregation Basics', category: 'segregation', contentType: 'video',       pointsReward: 30,  durationMins: 5, sortOrder: 0, description: 'Learn the 3-bin system for effective waste separation at source.' },
+    { title: 'Home Composting Guide',    category: 'composting',  contentType: 'article',     pointsReward: 25,  durationMins: 8, sortOrder: 1, description: 'Turn kitchen waste into rich compost in 3 simple steps.' },
+    { title: 'Plastic Recycling Quiz',   category: 'recycling',   contentType: 'quiz',        pointsReward: 100, durationMins: 3, sortOrder: 2, description: 'Test your knowledge on plastic recycling categories and codes.' },
+    { title: 'E-Waste Disposal Rules',   category: 'awareness',   contentType: 'infographic', pointsReward: 20,  durationMins: 4, sortOrder: 3, description: 'Understand how to safely dispose of electronics and batteries.' },
+    { title: 'Dry Waste & Recycling',    category: 'recycling',   contentType: 'video',       pointsReward: 30,  durationMins: 6, sortOrder: 4, description: 'Complete guide to sorting paper, glass, metal, and plastic.' },
+  ]);
+  logger.info('Training modules seeded');
+
+  // ── Sample Notifications ──────────────────────────────────────────────────
+  await Notification.insertMany([
+    { userId: citizen._id, title: 'Complaint Resolved!', body: 'Your missed collection complaint on MG Road has been resolved.', type: 'complaint_update', isRead: false },
+    { userId: citizen._id, title: 'Tip: Segregate your waste', body: 'Did you know proper waste segregation reduces landfill waste by 60%?', type: 'awareness', isRead: true },
+    { userId: citizen._id, title: '🏆 Badge Earned!', body: 'You earned the "7-Day Streak" badge. Keep it up!', type: 'reward', isRead: false },
+  ]);
+  logger.info('Notifications seeded');
+
+  logger.info('\n✅ Seed complete!');
+  logger.info('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+  logger.info('Demo credentials:');
+  logger.info('  Citizen:   +919876543210 / citizen123');
+  logger.info('  Authority: +919876543211 / authority123');
+  logger.info('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+
+  await mongoose.disconnect();
+}
+
+seed().catch(err => {
+  console.error('Seed failed:', err);
+  process.exit(1);
+});

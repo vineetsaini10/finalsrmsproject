@@ -1,0 +1,78 @@
+version: '3.9'
+
+services:
+  mongodb:
+    image: mongo:7.0
+    ports:
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_DATABASE: swachhanet
+    volumes:
+      - mongodata:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redisdata:/data
+
+  backend:
+    build: ./backend
+    ports:
+      - "5000:5000"
+    environment:
+      NODE_ENV: development
+      MONGODB_URI: mongodb://mongodb:27017/swachhanet
+      REDIS_URL: redis://redis:6379
+      AI_SERVICE_URL: http://ai:8001
+      JWT_SECRET: change_me_in_production
+      JWT_REFRESH_SECRET: change_me_refresh_in_production
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    volumes:
+      - ./backend:/app
+      - /app/node_modules
+
+  ai:
+    build: ./ai
+    ports:
+      - "8001:8001"
+    environment:
+      MONGODB_URI: mongodb://mongodb:27017/swachhanet
+      REDIS_URL: redis://redis:6379
+      MODEL_PATH: /app/models/weights
+    depends_on:
+      - mongodb
+      - redis
+    volumes:
+      - ./ai:/app
+      - ai_models:/app/models/weights
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "3000:3000"
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:5000/api/v1
+      NEXT_PUBLIC_AI_URL: http://localhost:8001
+      NEXT_PUBLIC_MAPBOX_TOKEN: YOUR_MAPBOX_TOKEN
+    depends_on:
+      - backend
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+      - /app/.next
+
+volumes:
+  mongodata:
+  redisdata:
+  ai_models:

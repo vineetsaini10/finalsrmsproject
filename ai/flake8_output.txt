@@ -1,0 +1,43 @@
+[1mapi\core\database.py[m[36m:[m17[36m:[m80[36m:[m [1m[31mE501[m line too long (82 > 79 characters)
+[1mapi\main.py[m[36m:[m1[36m:[m1[36m:[m [1m[31mF401[m 'fastapi.HTTPException' imported but unused
+[1mapi\main.py[m[36m:[m28[36m:[m80[36m:[m [1m[31mE501[m line too long (81 > 79 characters)
+[1mapi\routes\classify.py[m[36m:[m49[36m:[m80[36m:[m [1m[31mE501[m line too long (90 > 79 characters)
+[1mapi\routes\classify.py[m[36m:[m53[36m:[m80[36m:[m [1m[31mE501[m line too long (80 > 79 characters)
+[1mapi\routes\classify.py[m[36m:[m57[36m:[m80[36m:[m [1m[31mE501[m line too long (82 > 79 characters)
+[1mapi\routes\classify.py[m[36m:[m81[36m:[m80[36m:[m [1m[31mE501[m line too long (82 > 79 characters)
+[1mapi\routes\hotspots.py[m[36m:[m8[36m:[m1[36m:[m [1m[31mF401[m 'api.core.database.insert_one' imported but unused
+[1mapi\routes\hotspots.py[m[36m:[m9[36m:[m1[36m:[m [1m[31mF401[m 'api.core.config.settings' imported but unused
+[1mapi\routes\hotspots.py[m[36m:[m15[36m:[m80[36m:[m [1m[31mE501[m line too long (83 > 79 characters)
+[1mapi\routes\hotspots.py[m[36m:[m35[36m:[m13[36m:[m [1m[31mE221[m multiple spaces before operator
+[1mapi\routes\hotspots.py[m[36m:[m36[36m:[m13[36m:[m [1m[31mE221[m multiple spaces before operator
+[1mapi\routes\hotspots.py[m[36m:[m38[36m:[m14[36m:[m [1m[31mE221[m multiple spaces before operator
+[1mapi\routes\hotspots.py[m[36m:[m39[36m:[m17[36m:[m [1m[31mE221[m multiple spaces before operator
+[1mapi\routes\hotspots.py[m[36m:[m54[36m:[m30[36m:[m [1m[31mE221[m multiple spaces before operator
+[1mapi\routes\hotspots.py[m[36m:[m55[36m:[m20[36m:[m [1m[31mE221[m multiple spaces before operator
+[1mapi\routes\hotspots.py[m[36m:[m56[36m:[m22[36m:[m [1m[31mE221[m multiple spaces before operator
+[1mapi\routes\hotspots.py[m[36m:[m57[36m:[m21[36m:[m [1m[31mE221[m multiple spaces before operator
+[1mapi\routes\hotspots.py[m[36m:[m100[36m:[m80[36m:[m [1m[31mE501[m line too long (111 > 79 characters)
+[1mapi\routes\predict.py[m[36m:[m2[36m:[m1[36m:[m [1m[31mF401[m 'datetime.date' imported but unused
+[1mapi\routes\predict.py[m[36m:[m15[36m:[m80[36m:[m [1m[31mE501[m line too long (82 > 79 characters)
+[1mapi\routes\predict.py[m[36m:[m20[36m:[m8[36m:[m [1m[31mE221[m multiple spaces before operator
+[1mapi\routes\predict.py[m[36m:[m23[36m:[m9[36m:[m [1m[31mE221[m multiple spaces before operator
+[1mapi\routes\predict.py[m[36m:[m24[36m:[m11[36m:[m [1m[31mE221[m multiple spaces before operator
+[1mapi\routes\predict.py[m[36m:[m25[36m:[m10[36m:[m [1m[31mE221[m multiple spaces before operator
+[1mapi\routes\predict.py[m[36m:[m27[36m:[m80[36m:[m [1m[31mE501[m line too long (90 > 79 characters)
+[1mapi\routes\predict.py[m[36m:[m35[36m:[m15[36m:[m [1m[31mE221[m multiple spaces before operator
+[1mapi\routes\predict.py[m[36m:[m37[36m:[m11[36m:[m [1m[31mE221[m multiple spaces before operator
+[1mapi\routes\predict.py[m[36m:[m42[36m:[m17[36m:[m [1m[31mE221[m multiple spaces before operator
+[1mapi\routes\predict.py[m[36m:[m43[36m:[m19[36m:[m [1m[31mE221[m multiple spaces before operator
+[1mapi\routes\predict.py[m[36m:[m44[36m:[m18[36m:[m [1m[31mE221[m multiple spaces before operator
+[1mapi\routes\predict.py[m[36m:[m51[36m:[m80[36m:[m [1m[31mE501[m line too long (94 > 79 characters)
+[1mapi\routes\predict.py[m[36m:[m77[36m:[m80[36m:[m [1m[31mE501[m line too long (89 > 79 characters)
+[1mapi\routes\predict.py[m[36m:[m85[36m:[m22[36m:[m [1m[31mE221[m multiple spaces before operator
+[1mapi\routes\predict.py[m[36m:[m86[36m:[m21[36m:[m [1m[31mE221[m multiple spaces before operator
+[1mapi\routes\predict.py[m[36m:[m91[36m:[m80[36m:[m [1m[31mE501[m line too long (87 > 79 characters)
+[1mapi\routes\predict.py[m[36m:[m95[36m:[m17[36m:[m [1m[31mE221[m multiple spaces before operator
+[1mapi\routes\predict.py[m[36m:[m103[36m:[m15[36m:[m [1m[31mE221[m multiple spaces before operator
+[1mapi\routes\predict.py[m[36m:[m105[36m:[m80[36m:[m [1m[31mE501[m line too long (92 > 79 characters)
+[1mapi\routes\predict.py[m[36m:[m114[36m:[m80[36m:[m [1m[31mE501[m line too long (114 > 79 characters)
+[1mapi\routes\predict.py[m[36m:[m119[36m:[m80[36m:[m [1m[31mE501[m line too long (113 > 79 characters)
+[1mapi\routes\predict.py[m[36m:[m126[36m:[m80[36m:[m [1m[31mE501[m line too long (112 > 79 characters)
+[1mapi\routes\predict.py[m[36m:[m129[36m:[m80[36m:[m [1m[31mE501[m line too long (92 > 79 characters)

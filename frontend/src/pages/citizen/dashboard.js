@@ -1,0 +1,195 @@
+import { useQuery } from '@tanstack/react-query'
+import Link from 'next/link'
+import { complaintsAPI, gamificationAPI } from '../../utils/api'
+import useAuthStore from '../../context/authStore'
+import CitizenLayout from '../../components/shared/CitizenLayout'
+import { StatCard, SectionCard, Badge, PriorityBadge, PageLoader } from '../../components/ui'
+import { formatDistanceToNow } from 'date-fns'
+
+const ISSUE_EMOJI = {
+  full_dustbin: '🗑️', illegal_dumping: '⚠️', burning_waste: '🔥',
+  missed_collection: '🚛', overflowing_bin: '💧', other: '📍',
+}
+
+export default function CitizenDashboard() {
+  const { user } = useAuthStore()
+
+  const { data: complaintsData, isLoading } = useQuery({
+    queryKey: ['my-complaints'],
+    queryFn:  () => complaintsAPI.list({ limit: 8 }),
+    select:   d => d.data,
+  })
+
+  const { data: g } = useQuery({
+    queryKey: ['gamification-me'],
+    queryFn:  () => gamificationAPI.me(),
+    select:   d => d.data,
+  })
+
+  const LEVEL_NAMES = ['','Eco Beginner','Green Citizen','Eco Warrior','Waste Champion','Eco Hero','Planet Guardian']
+  const LEVEL_THRESHOLDS = [0, 100, 300, 600, 1000, 1500, 2500]
+  const level = g?.level || 1
+  const points = g?.totalPoints || 0
+  const nextThreshold = LEVEL_THRESHOLDS[level] || 2500
+  const prevThreshold = LEVEL_THRESHOLDS[level - 1] || 0
+  const progress = nextThreshold > prevThreshold
+    ? Math.min(100, Math.round(((points - prevThreshold) / (nextThreshold - prevThreshold)) * 100))
+    : 100
+
+  const complaints = complaintsData?.data || []
+  const resolved   = complaints.filter(c => c.status === 'resolved').length
+
+  return (
+    <div className="space-y-6">
+      {/* Welcome banner */}
+      <div className="bg-gradient-to-r from-green-600 to-green-700 rounded-2xl p-6 text-white">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-bold">Hello, {user?.name?.split(' ')[0]} 👋</h1>
+            <p className="text-green-100 text-sm mt-1">{user?.wardName || 'Your Ward'} · {user?.city || 'India'}</p>
+          </div>
+          <Link href="/citizen/report">
+            <button className="btn bg-white text-green-700 hover:bg-green-50 font-semibold shadow-sm">
+              + Report Waste Issue
+            </button>
+          </Link>
+        </div>
+      </div>
+
+      {/* Stats row */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <StatCard label="Reports Filed"    value={g?.reportsCount || 0} icon="📸" color="green" />
+        <StatCard label="Resolved"         value={resolved}             icon="✅" color="blue"  />
+        <StatCard label="Eco Points"       value={points.toLocaleString()} icon="⭐" color="amber" />
+        <StatCard label="Current Level"    value={`Level ${level}`}     icon="🏆" color="purple" />
+      </div>
+
+      {/* Main grid */}
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+        {/* Recent complaints - takes 2 cols */}
+        <div className="xl:col-span-2">
+          <SectionCard
+            title="My Recent Reports"
+            subtitle="Track the status of your submitted complaints"
+            action={
+              <Link href="/citizen/complaints">
+                <button className="btn-secondary btn-sm">View All</button>
+              </Link>
+            }
+          >
+            {isLoading ? (
+              <PageLoader />
+            ) : complaints.length === 0 ? (
+              <div className="p-10 text-center text-slate-400">
+                <div className="text-4xl mb-3">📭</div>
+                <p className="font-medium text-slate-600">No reports yet</p>
+                <p className="text-sm mt-1">Start by reporting a waste issue in your area</p>
+                <Link href="/citizen/report">
+                  <button className="btn-primary mt-4">Report Now</button>
+                </Link>
+              </div>
+            ) : (
+              <div className="table-wrap">
+                <table className="table">
+                  <thead>
+                    <tr>
+                      <th>Issue</th>
+                      <th>Location</th>
+                      <th>Priority</th>
+                      <th>AI Detected</th>
+                      <th>Status</th>
+                      <th>Time</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {complaints.map(c => (
+                      <tr key={c._id}
+                        className="cursor-pointer"
+                        onClick={() => window.location.href = `/citizen/complaints/${c._id}`}
+                      >
+                        <td>
+                          <div className="flex items-center gap-2">
+                            <span className="text-lg">{ISSUE_EMOJI[c.issueType] || '📍'}</span>
+                            <span className="font-medium capitalize">{c.issueType.replace(/_/g, ' ')}</span>
+                          </div>
+                        </td>
+                        <td>
+                          <span className="text-slate-500 text-xs max-w-[180px] truncate block">
+                            {c.address || 'Location captured'}
+                          </span>
+                        </td>
+                        <td><PriorityBadge priority={c.priority} /></td>
+                        <td>
+                          {c.aiResult?.wasteType
+                            ? <span className="text-green-700 font-medium capitalize text-xs">{c.aiResult.wasteType}</span>
+                            : <span className="text-slate-300 text-xs">—</span>}
+                        </td>
+                        <td><Badge status={c.status} /></td>
+                        <td className="text-slate-400 text-xs whitespace-nowrap">
+                          {formatDistanceToNow(new Date(c.createdAt), { addSuffix: true })}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </SectionCard>
+        </div>
+
+        {/* Right column */}
+        <div className="space-y-5">
+          {/* Eco progress card */}
+          <div className="card p-5 bg-gradient-to-br from-green-50 to-emerald-50 border-green-100">
+            <div className="flex items-center justify-between mb-3">
+              <div>
+                <p className="text-sm font-semibold text-green-800">Level {level} — {LEVEL_NAMES[level] || 'Master'}</p>
+                <p className="text-xs text-green-600 mt-0.5">{points.toLocaleString()} / {nextThreshold.toLocaleString()} pts</p>
+              </div>
+              <span className="text-3xl">🌱</span>
+            </div>
+            <div className="w-full bg-green-200 rounded-full h-2.5 mb-3">
+              <div className="h-2.5 bg-green-600 rounded-full transition-all duration-700" style={{ width: `${progress}%` }} />
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              {(g?.badges || []).slice(0, 4).map(b => (
+                <span key={b} className="text-xs px-2 py-0.5 bg-green-100 text-green-700 rounded-full border border-green-200 font-medium">
+                  {b.replace(/_/g, ' ')}
+                </span>
+              ))}
+              {(g?.badges?.length || 0) > 4 && (
+                <span className="text-xs text-green-500">+{g.badges.length - 4} more</span>
+              )}
+            </div>
+            {(g?.streakDays || 0) > 0 && (
+              <div className="mt-3 flex items-center gap-1.5 text-sm text-amber-600 font-medium">
+                🔥 {g.streakDays}-day streak!
+              </div>
+            )}
+          </div>
+
+          {/* Quick actions */}
+          <SectionCard title="Quick Actions">
+            <div className="grid grid-cols-2 gap-2 p-4">
+              {[
+                { href: '/citizen/report',      icon: '📸', label: 'Report Issue',   color: 'bg-green-50 hover:bg-green-100 border-green-100' },
+                { href: '/citizen/map',          icon: '🗺️', label: 'Find Centers',   color: 'bg-blue-50 hover:bg-blue-100 border-blue-100' },
+                { href: '/citizen/learn',        icon: '📚', label: 'Learn & Quiz',   color: 'bg-purple-50 hover:bg-purple-100 border-purple-100' },
+                { href: '/citizen/leaderboard',  icon: '🏆', label: 'Leaderboard',    color: 'bg-amber-50 hover:bg-amber-100 border-amber-100' },
+              ].map(a => (
+                <Link key={a.href} href={a.href}>
+                  <div className={`p-3 rounded-xl border ${a.color} text-center cursor-pointer transition-all`}>
+                    <div className="text-2xl mb-1">{a.icon}</div>
+                    <div className="text-xs font-semibold text-slate-700">{a.label}</div>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          </SectionCard>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+CitizenDashboard.getLayout = page => <CitizenLayout>{page}</CitizenLayout>
