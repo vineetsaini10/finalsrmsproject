@@ -8,13 +8,19 @@ export default function RegisterPage() {
   const router = useRouter()
   const [step, setStep] = useState(1)
   const [loading, setLoading] = useState(false)
-  const [form, setForm] = useState({ name: '', phone: '', email: '', password: '', otp: '' })
+  const [form, setForm] = useState({ name: '', phone: '', email: '', password: '', otp: '', role: 'citizen' })
 
   const handleRegister = async (e) => {
     e.preventDefault()
     setLoading(true)
     try {
-      await authAPI.register({ name: form.name, phone: form.phone, email: form.email, password: form.password })
+      await authAPI.register({ 
+        name: form.name, 
+        phone: form.phone, 
+        email: form.email, 
+        password: form.password,
+        role: form.role
+      })
       toast.success('OTP sent to your phone!')
       setStep(2)
     } catch (err) {
@@ -119,6 +125,25 @@ export default function RegisterPage() {
                   <label className="label">Password</label>
                   <input className="input" type="password" placeholder="Minimum 6 characters" value={form.password}
                     onChange={e => setForm({ ...form, password: e.target.value })} required minLength={6} />
+                </div>
+                <div>
+                  <label className="label">Register as</label>
+                  <div className="grid grid-cols-2 gap-3">
+                    {['citizen', 'authority'].map(r => (
+                      <button
+                        key={r}
+                        type="button"
+                        onClick={() => setForm({ ...form, role: r })}
+                        className={`py-2 px-4 rounded-xl border text-sm font-medium transition-all ${
+                          form.role === r 
+                            ? 'bg-green-600 border-green-600 text-white shadow-lg shadow-green-900/20' 
+                            : 'bg-white border-slate-200 text-slate-600 hover:border-green-200 hover:bg-green-50'
+                        }`}
+                      >
+                        {r.charAt(0).toUpperCase() + r.slice(1)}
+                      </button>
+                    ))}
+                  </div>
                 </div>
                 <button type="submit" disabled={loading} className="btn-primary w-full py-2.5 mt-2">
                   {loading ? 'Creating account...' : 'Create Account & Send OTP'}

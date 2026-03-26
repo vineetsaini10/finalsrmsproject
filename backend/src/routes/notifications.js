@@ -1,6 +1,7 @@
 const router = require('express').Router();
 const { Notification } = require('../models/Notification');
 const { authenticate } = require('../middleware/auth');
+const { ok } = require('../utils/response');
 
 // GET /notifications
 router.get('/', authenticate, async (req, res, next) => {
@@ -15,7 +16,8 @@ router.get('/', authenticate, async (req, res, next) => {
       Notification.countDocuments({ userId: req.user._id, isRead: false }),
     ]);
 
-    res.json({ notifications, unread_count: unreadCount });
+    const payload = { notifications, unread_count: unreadCount };
+    return ok(res, payload, 'Notifications fetched');
   } catch (err) { next(err); }
 });
 
@@ -26,7 +28,7 @@ router.put('/:id/read', authenticate, async (req, res, next) => {
       { _id: req.params.id, userId: req.user._id },
       { isRead: true }
     );
-    res.json({ success: true });
+    return ok(res, {}, 'Notification marked as read');
   } catch (err) { next(err); }
 });
 
@@ -34,7 +36,7 @@ router.put('/:id/read', authenticate, async (req, res, next) => {
 router.put('/read-all', authenticate, async (req, res, next) => {
   try {
     await Notification.updateMany({ userId: req.user._id }, { isRead: true });
-    res.json({ success: true });
+    return ok(res, {}, 'All notifications marked as read');
   } catch (err) { next(err); }
 });
 

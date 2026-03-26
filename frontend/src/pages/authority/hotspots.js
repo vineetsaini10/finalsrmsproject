@@ -17,7 +17,7 @@ export default function HotspotsPage() {
   const { data, isLoading, refetch } = useQuery({
     queryKey: ['hotspots', user?.wardId],
     queryFn:  () => aiAPI.hotspots({ ward_id: user?.wardId, days: 7 }),
-    select: d => d.data,
+    select: d => d.data?.data || d.data,
   })
 
   const hotspots = data?.hotspots || []

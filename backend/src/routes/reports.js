@@ -3,6 +3,7 @@ const Complaint = require('../models/Complaint');
 const Worker    = require('../models/Worker');
 const Gamification = require('../models/Gamification');
 const { authenticate, authorize } = require('../middleware/auth');
+const { ok } = require('../utils/response');
 
 // GET /reports/dashboard
 router.get('/dashboard', authenticate, authorize('authority', 'admin'), async (req, res, next) => {
@@ -68,7 +69,7 @@ router.get('/dashboard', authenticate, authorize('authority', 'admin'), async (r
       ? Math.round((resHours.reduce((a, b) => a + b, 0) / resHours.length) * 10) / 10
       : null;
 
-    res.json({
+    const payload = {
       summary: {
         urgent_open:       urgentOpen,
         in_progress:       inProgress,
@@ -80,7 +81,8 @@ router.get('/dashboard', authenticate, authorize('authority', 'admin'), async (r
       trend,
       by_type:   byType,
       by_status: byStatus,
-    });
+    };
+    return ok(res, payload, 'Dashboard report fetched');
   } catch (err) { next(err); }
 });
 
@@ -135,12 +137,13 @@ router.get('/citizen-participation', authenticate, authorize('authority', 'admin
       ]),
     ]);
 
-    res.json({
+    const payload = {
       active_reporters:  agg[0]?.reporters?.length || 0,
       total_complaints:  agg[0]?.total || 0,
       avg_citizen_points: Math.round(gamStats[0]?.avgPoints || 0),
       engaged_users:     gamStats[0]?.engaged || 0,
-    });
+    };
+    return ok(res, payload, 'Citizen participation report fetched');
   } catch (err) { next(err); }
 });
 

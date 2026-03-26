@@ -1,8 +1,10 @@
 import axios from 'axios'
 import Cookies from 'js-cookie'
 
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1'
+
 const api = axios.create({
-  baseURL: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1',
+  baseURL: API_BASE_URL,
   timeout: 15000,
 })
 
@@ -15,7 +17,12 @@ api.interceptors.request.use((config) => {
 
 // Auto-refresh on 401
 api.interceptors.response.use(
-  (res) => res,
+  (res) => {
+    if (res?.data && typeof res.data === 'object' && Object.prototype.hasOwnProperty.call(res.data, 'success')) {
+      res.data = res.data.data ?? res.data
+    }
+    return res
+  },
   async (error) => {
     const original = error.config
     if (error.response?.status === 401 &&
@@ -25,12 +32,13 @@ api.interceptors.response.use(
       try {
         const refreshToken = Cookies.get('refreshToken')
         const { data } = await axios.post(
-          `${process.env.NEXT_PUBLIC_API_URL}/auth/refresh`,
+          `${API_BASE_URL}/auth/refresh`,
           { refreshToken }
         )
-        Cookies.set('accessToken', data.accessToken, { expires: 1 / 96 }) // 15min
-        Cookies.set('refreshToken', data.refreshToken, { expires: 7 })
-        original.headers.Authorization = `Bearer ${data.accessToken}`
+        const payload = data?.data || data
+        Cookies.set('accessToken', payload.accessToken, { expires: 1 / 96 }) // 15min
+        Cookies.set('refreshToken', payload.refreshToken, { expires: 7 })
+        original.headers.Authorization = `Bearer ${payload.accessToken}`
         return api(original)
       } catch {
         Cookies.remove('accessToken')
@@ -53,6 +61,9 @@ export const authAPI = {
   refresh: (refreshToken) => api.post('/auth/refresh', { refreshToken }),
   logout: (refreshToken) => api.post('/auth/logout', { refreshToken }),
   me: () => api.get('/auth/me'),
+  updateMe: (payload) => api.put('/auth/me', payload),
+  getSettings: () => api.get('/auth/settings'),
+  updateSettings: (payload) => api.put('/auth/settings', payload),
 }
 
 // ── Complaints ───────────────────────────────────────────────────────────────
@@ -77,6 +88,15 @@ export const aiAPI = {
   hotspots: (params) => api.get('/ai/hotspots', { params }),
   predictions: (wardId) => api.get(`/ai/predictions/ward/${wardId}`),
   heatmap: (params) => api.get('/ai/heatmap', { params }),
+
+  predictWaste: (formData) => api.post('/ai/predict-waste', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  }),
+  detectHotspot: (coordinates) => api.post('/ai/detect-hotspot', { coordinates }),
+  predictTrend: (historicalData, forecastDays) => api.post('/ai/predict-trend', { 
+    historical_data: historicalData, 
+    forecast_days: forecastDays 
+  }),
 }
 
 // ── Map ──────────────────────────────────────────────────────────────────────
@@ -90,6 +110,7 @@ export const mapAPI = {
 export const trainingAPI = {
   modules: (category) => api.get('/training/modules', { params: { category } }),
   module: (id) => api.get(`/training/modules/${id}`),
+  completeModule: (id) => api.post(`/training/modules/${id}/complete`),
   submitQuiz: (data) => api.post('/training/quiz/submit', data),
 }
 

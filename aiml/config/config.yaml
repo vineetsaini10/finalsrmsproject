@@ -1,0 +1,32 @@
+project:
+  name: "EcoIntellect AI Backend"
+  version: "1.0.0"
+
+server:
+  host: "0.0.0.0"
+  port: 8000
+  reload: true
+
+model_paths:
+  waste_classifier: "models/waste_classifier/best_model.pth"
+  hotspot_model: "models/hotspot_model/dbscan_model.pkl"
+  prediction_model: "models/prediction_model/prophet_model.pkl"
+
+data_paths:
+  raw: "data/raw/"
+  processed: "data/processed/"
+
+classifier:
+  image_size: [224, 224]
+  classes: ["wet", "dry", "plastic", "hazardous"]
+  confidence_threshold: 0.60
+  model_architecture: "mobilenet_v2"
+
+hotspot:
+  eps: 0.005 # ~500 meters
+  min_samples: 5
+  metric: "haversine"
+
+prediction:
+  history_days: 90
+  forecast_days: 30

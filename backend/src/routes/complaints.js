@@ -1,8 +1,10 @@
 const router  = require('express').Router();
 const multer  = require('multer');
-const { S3Client, PutObjectCommand } = require('@aws-sdk/client-s3');
 const { v4: uuidv4 } = require('uuid');
 const axios   = require('axios');
+const fs = require('fs');
+const path = require('path');
+const { ImageKit } = require('@imagekit/nodejs');
 
 const Complaint    = require('../models/Complaint');
 const Worker       = require('../models/Worker');
@@ -10,18 +12,19 @@ const Ward         = require('../models/Ward');
 const { authenticate, authorize } = require('../middleware/auth');
 const { awardPoints }             = require('../services/gamificationService');
 const { notifyAuthorities }       = require('../services/notificationService');
+const { notifyCitizen }           = require('../services/notificationService');
 const { queueAIClassification }   = require('../jobs/aiQueue');
 const logger = require('../utils/logger');
+const { ok, fail } = require('../utils/response');
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } });
-
-const s3 = new S3Client({
-  region: process.env.AWS_REGION || 'ap-south-1',
-  credentials: {
-    accessKeyId:     process.env.AWS_ACCESS_KEY_ID,
-    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
-  },
-});
+const imagekit = (process.env.IMAGEKIT_PUBLIC_KEY && process.env.IMAGEKIT_PRIVATE_KEY && process.env.IMAGEKIT_URL_ENDPOINT)
+  ? new ImageKit({
+      publicKey: process.env.IMAGEKIT_PUBLIC_KEY,
+      privateKey: process.env.IMAGEKIT_PRIVATE_KEY,
+      urlEndpoint: process.env.IMAGEKIT_URL_ENDPOINT,
+    })
+  : null;
 
 const PRIORITY_MAP = {
   burning_waste: 3, illegal_dumping: 3,
@@ -29,12 +32,25 @@ const PRIORITY_MAP = {
   missed_collection: 1, stray_animal_waste: 1, other: 1,
 };
 
-async function uploadToS3(buffer, mimetype) {
-  const key = `complaints/${uuidv4()}.jpg`;
-  await s3.send(new PutObjectCommand({
-    Bucket: process.env.S3_BUCKET, Key: key, Body: buffer, ContentType: mimetype,
-  }));
-  return `https://${process.env.S3_BUCKET}.s3.${process.env.AWS_REGION}.amazonaws.com/${key}`;
+async function uploadToStorage(buffer, mimetype) {
+  if (imagekit) {
+    const filename = `${uuidv4()}.jpg`;
+    const uploadRes = await imagekit.upload({
+      file: buffer.toString('base64'),
+      fileName: filename,
+      folder: process.env.IMAGEKIT_FOLDER || '/swachhanet/complaints',
+      useUniqueFileName: false,
+      tags: ['complaint-image'],
+    });
+    return uploadRes.url;
+  }
+
+  const uploadsDir = path.resolve(__dirname, '../../uploads/complaints');
+  fs.mkdirSync(uploadsDir, { recursive: true });
+  const filename = `${uuidv4()}.jpg`;
+  const outPath = path.join(uploadsDir, filename);
+  fs.writeFileSync(outPath, buffer);
+  return `/uploads/complaints/${filename}`;
 }
 
 async function reverseGeocode(lat, lng) {
@@ -50,10 +66,11 @@ async function reverseGeocode(lat, lng) {
 router.post('/', authenticate, upload.single('image'), async (req, res, next) => {
   try {
     const { issue_type, lat, lng, description } = req.body;
-    if (!issue_type || !lat || !lng) return res.status(400).json({ error: 'issue_type, lat, lng required' });
+    if (!issue_type || lat === undefined || lng === undefined) return fail(res, 400, 'issue_type, lat, lng required');
+    if (Number.isNaN(Number(lat)) || Number.isNaN(Number(lng))) return fail(res, 400, 'lat/lng must be valid numbers');
 
     let imageUrl = null;
-    if (req.file) imageUrl = await uploadToS3(req.file.buffer, req.file.mimetype);
+    if (req.file) imageUrl = await uploadToStorage(req.file.buffer, req.file.mimetype);
 
     const address  = await reverseGeocode(lat, lng);
     const priority = PRIORITY_MAP[issue_type] || 1;
@@ -74,7 +91,7 @@ router.post('/', authenticate, upload.single('image'), async (req, res, next) =>
     if (priority >= 3) await notifyAuthorities(complaint);
 
     logger.info(`New complaint [${issue_type}] by ${req.user._id}`);
-    res.status(201).json({ success: true, complaint });
+    return ok(res, { complaint }, 'Complaint submitted', 201);
   } catch (err) { next(err); }
 });
 
@@ -106,10 +123,11 @@ router.get('/', authenticate, async (req, res, next) => {
       Complaint.countDocuments(filter),
     ]);
 
-    res.json({
+    const payload = {
       data,
       meta: { total, page: Number(page), limit: Number(limit), pages: Math.ceil(total / limit) },
-    });
+    };
+    return ok(res, payload, 'Complaints fetched');
   } catch (err) { next(err); }
 });
 
@@ -121,8 +139,8 @@ router.get('/:id', authenticate, async (req, res, next) => {
       .populate('wardId', 'name city')
       .populate('assignments.workerId', 'name phone')
       .lean();
-    if (!complaint) return res.status(404).json({ error: 'Complaint not found' });
-    res.json(complaint);
+    if (!complaint) return fail(res, 404, 'Complaint not found');
+    return ok(res, complaint, 'Complaint fetched');
   } catch (err) { next(err); }
 });
 
@@ -131,14 +149,20 @@ router.put('/:id/status', authenticate, authorize('authority', 'admin'), async (
   try {
     const { status, rejection_note } = req.body;
     const valid = ['pending','assigned','in_progress','resolved','rejected'];
-    if (!valid.includes(status)) return res.status(400).json({ error: 'Invalid status' });
+    if (!valid.includes(status)) return fail(res, 400, 'Invalid status');
 
     const update = { status, rejectionNote: rejection_note || undefined };
     if (status === 'resolved') update.resolvedAt = new Date();
 
     const complaint = await Complaint.findByIdAndUpdate(req.params.id, update, { new: true });
-    if (!complaint) return res.status(404).json({ error: 'Complaint not found' });
-    res.json({ success: true, complaint });
+    if (!complaint) return fail(res, 404, 'Complaint not found');
+    await notifyCitizen(
+      complaint.userId,
+      `Complaint ${status.replace('_', ' ')}`,
+      `Your complaint status is now "${status.replace('_', ' ')}".`,
+      { complaintId: complaint._id, status }
+    );
+    return ok(res, { complaint }, 'Complaint status updated');
   } catch (err) { next(err); }
 });
 
@@ -146,7 +170,7 @@ router.put('/:id/status', authenticate, authorize('authority', 'admin'), async (
 router.post('/:id/assign', authenticate, authorize('authority', 'admin'), async (req, res, next) => {
   try {
     const { worker_id, notes } = req.body;
-    if (!worker_id) return res.status(400).json({ error: 'worker_id required' });
+    if (!worker_id) return fail(res, 400, 'worker_id required');
 
     const complaint = await Complaint.findByIdAndUpdate(
       req.params.id,
@@ -162,8 +186,14 @@ router.post('/:id/assign', authenticate, authorize('authority', 'admin'), async 
       },
       { new: true }
     );
-    if (!complaint) return res.status(404).json({ error: 'Complaint not found' });
-    res.status(201).json({ success: true, complaint });
+    if (!complaint) return fail(res, 404, 'Complaint not found');
+    await notifyCitizen(
+      complaint.userId,
+      'Complaint assigned',
+      'Your complaint has been assigned to a field worker.',
+      { complaintId: complaint._id, workerId: worker_id }
+    );
+    return ok(res, { complaint }, 'Worker assigned', 201);
   } catch (err) { next(err); }
 });
 
@@ -171,7 +201,9 @@ router.post('/:id/assign', authenticate, authorize('authority', 'admin'), async 
 router.post('/:id/upvote', authenticate, async (req, res, next) => {
   try {
     const c = await Complaint.findByIdAndUpdate(req.params.id, { $inc: { upvotes: 1 } }, { new: true });
-    res.json({ id: c._id, upvotes: c.upvotes });
+    if (!c) return fail(res, 404, 'Complaint not found');
+    const payload = { id: c._id, upvotes: c.upvotes };
+    return ok(res, payload, 'Upvoted');
   } catch (err) { next(err); }
 });
 

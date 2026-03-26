@@ -15,6 +15,7 @@ async function notifyAuthorities(complaint) {
     const authorities = await User.find({
       role:   { $in: ['authority', 'admin'] },
       $or:    [{ wardId: complaint.wardId }, { wardId: { $exists: false } }],
+      'notificationPrefs.urgentComplaints': { $ne: false },
     }).select('_id').lean();
 
     await Promise.all(authorities.map(a =>
@@ -32,6 +33,8 @@ async function notifyAuthorities(complaint) {
 }
 
 async function notifyCitizen(userId, title, body, data = {}) {
+  const user = await User.findById(userId).select('notificationPrefs').lean();
+  if (user?.notificationPrefs?.complaintUpdates === false) return null;
   return createNotification(userId, title, body, 'complaint_update', data);
 }
 

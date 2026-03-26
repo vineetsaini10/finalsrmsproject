@@ -35,9 +35,12 @@ export default function ReportPage() {
     setClassifying(true)
     try {
       const fd = new FormData(); fd.append('image', file)
-      const { data } = await aiAPI.classify(fd)
-      setAiResult(data.result)
-      toast.success(`AI: ${data.result.label} waste detected (${Math.round(data.result.confidence * 100)}%)`)
+      const response = await aiAPI.classify(fd)
+      const result = response.data?.data?.result || response.data?.result
+      if (result) {
+        setAiResult(result)
+        toast.success(`AI: ${result.label} waste detected (${Math.round(result.confidence * 100)}%)`)
+      }
     } catch { /* optional */ } finally { setClassifying(false) }
   }, [])
 
@@ -68,7 +71,7 @@ export default function ReportPage() {
       await complaintsAPI.submit(fd)
       setStep(3)
     } catch (err) {
-      toast.error(err.response?.data?.error || 'Submission failed')
+      toast.error(err.response?.data?.message || 'Submission failed')
     } finally { setSubmitting(false) }
   }
 

@@ -1,6 +1,7 @@
 const router = require('express').Router();
 const Worker = require('../models/Worker');
 const { authenticate, authorize } = require('../middleware/auth');
+const { ok, fail } = require('../utils/response');
 
 // GET /workers
 router.get('/', authenticate, authorize('authority', 'admin'), async (req, res, next) => {
@@ -15,7 +16,7 @@ router.get('/', authenticate, authorize('authority', 'admin'), async (req, res, 
       .sort({ name: 1 })
       .lean();
 
-    res.json({ workers });
+    return ok(res, { workers }, 'Workers fetched');
   } catch (err) { next(err); }
 });
 
@@ -23,8 +24,8 @@ router.get('/', authenticate, authorize('authority', 'admin'), async (req, res, 
 router.get('/:id', authenticate, authorize('authority', 'admin'), async (req, res, next) => {
   try {
     const worker = await Worker.findById(req.params.id).populate('wardId', 'name city').lean();
-    if (!worker) return res.status(404).json({ error: 'Worker not found' });
-    res.json(worker);
+    if (!worker) return fail(res, 404, 'Worker not found');
+    return ok(res, worker, 'Worker fetched');
   } catch (err) { next(err); }
 });
 
@@ -36,8 +37,8 @@ router.put('/:id/status', authenticate, authorize('authority', 'admin', 'worker'
     if (lat && lng) update.currentLocation = { type: 'Point', coordinates: [parseFloat(lng), parseFloat(lat)] };
 
     const worker = await Worker.findByIdAndUpdate(req.params.id, update, { new: true });
-    if (!worker) return res.status(404).json({ error: 'Worker not found' });
-    res.json(worker);
+    if (!worker) return fail(res, 404, 'Worker not found');
+    return ok(res, worker, 'Worker status updated');
   } catch (err) { next(err); }
 });
 

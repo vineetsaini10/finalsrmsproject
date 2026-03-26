@@ -30,7 +30,7 @@ services:
       NODE_ENV: development
       MONGODB_URI: mongodb://mongodb:27017/swachhanet
       REDIS_URL: redis://redis:6379
-      AI_SERVICE_URL: http://ai:8001
+      AIML_SERVICE_URL: http://aiml:8000
       JWT_SECRET: change_me_in_production
       JWT_REFRESH_SECRET: change_me_refresh_in_production
     depends_on:
@@ -42,20 +42,15 @@ services:
       - ./backend:/app
       - /app/node_modules
 
-  ai:
-    build: ./ai
+  aiml:
+    build: ./aiml
     ports:
-      - "8001:8001"
-    environment:
-      MONGODB_URI: mongodb://mongodb:27017/swachhanet
-      REDIS_URL: redis://redis:6379
-      MODEL_PATH: /app/models/weights
+      - "8000:8000"
     depends_on:
       - mongodb
       - redis
     volumes:
-      - ./ai:/app
-      - ai_models:/app/models/weights
+      - ./aiml:/app
 
   frontend:
     build: ./frontend
@@ -63,7 +58,7 @@ services:
       - "3000:3000"
     environment:
       NEXT_PUBLIC_API_URL: http://localhost:5000/api/v1
-      NEXT_PUBLIC_AI_URL: http://localhost:8001
+      NEXT_PUBLIC_AI_URL: http://localhost:8000
       NEXT_PUBLIC_MAPBOX_TOKEN: YOUR_MAPBOX_TOKEN
     depends_on:
       - backend
@@ -75,4 +70,3 @@ services:
 volumes:
   mongodata:
   redisdata:
-  ai_models:

@@ -18,7 +18,6 @@ const refreshTokenSchema = new Schema({
   expiresAt: { type: Date, required: true },
 }, { timestamps: true });
 
-refreshTokenSchema.index({ token: 1 });
 refreshTokenSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 }); // TTL auto-delete
 
 const Notification   = model('Notification', notificationSchema);

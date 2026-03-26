@@ -11,6 +11,11 @@ const trainingModuleSchema = new Schema({
   durationMins: { type: Number },
   isActive:     { type: Boolean, default: true },
   sortOrder:    { type: Number, default: 0 },
+  quizQuestions: [{
+    question: { type: String, required: true },
+    options:  { type: [String], default: [] },
+    answerIndex: { type: Number, required: true },
+  }],
 }, { timestamps: true });
 
 trainingModuleSchema.index({ category: 1, isActive: 1 });
@@ -27,7 +32,18 @@ const quizAttemptSchema = new Schema({
 
 quizAttemptSchema.index({ userId: 1, moduleId: 1 });
 
+const moduleProgressSchema = new Schema({
+  userId:       { type: Schema.Types.ObjectId, ref: 'User', required: true },
+  moduleId:     { type: Schema.Types.ObjectId, ref: 'TrainingModule', required: true },
+  completed:    { type: Boolean, default: true },
+  pointsEarned: { type: Number, default: 0 },
+  completedAt:  { type: Date, default: Date.now },
+}, { timestamps: true });
+
+moduleProgressSchema.index({ userId: 1, moduleId: 1 }, { unique: true });
+
 const TrainingModule = model('TrainingModule', trainingModuleSchema);
 const QuizAttempt    = model('QuizAttempt', quizAttemptSchema);
+const ModuleProgress = model('ModuleProgress', moduleProgressSchema);
 
-module.exports = { TrainingModule, QuizAttempt };
+module.exports = { TrainingModule, QuizAttempt, ModuleProgress };

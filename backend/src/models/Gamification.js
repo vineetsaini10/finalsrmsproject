@@ -12,7 +12,6 @@ const gamificationSchema = new Schema({
   lastActive:    { type: Date, default: Date.now },
 }, { timestamps: true });
 
-gamificationSchema.index({ userId: 1 });
 gamificationSchema.index({ totalPoints: -1 });
 
 module.exports = model('Gamification', gamificationSchema);

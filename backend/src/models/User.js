@@ -12,14 +12,27 @@ const userSchema = new Schema({
   otpExpiresAt: { type: Date },
   fcmToken:     { type: String },
   avatarUrl:    { type: String },
+  profile: {
+    bio:        { type: String, default: '' },
+    address:    { type: String, default: '' },
+    preferences: {
+      language: { type: String, default: 'en' },
+      theme:    { type: String, default: 'light' },
+    },
+  },
+  notificationPrefs: {
+    urgentComplaints: { type: Boolean, default: true },
+    dailyReport:      { type: Boolean, default: true },
+    hotspotAlert:     { type: Boolean, default: true },
+    weeklyDigest:     { type: Boolean, default: false },
+    complaintUpdates: { type: Boolean, default: true },
+  },
   location: {
     type: { type: String, enum: ['Point'], default: 'Point' },
     coordinates: { type: [Number], default: [0, 0] }, // [lng, lat]
   },
 }, { timestamps: true });
 
-userSchema.index({ phone: 1 });
-userSchema.index({ email: 1 });
 userSchema.index({ role: 1 });
 
 module.exports = model('User', userSchema);

@@ -2,16 +2,18 @@ const router = require('express').Router();
 const axios  = require('axios');
 const { authenticate } = require('../middleware/auth');
 const { setEx, get }   = require('../config/redis');
+const Complaint = require('../models/Complaint');
+const { ok, fail } = require('../utils/response');
 
 // GET /map/centers
 router.get('/centers', authenticate, async (req, res, next) => {
   try {
     const { lat, lng, radius = 5000, type } = req.query;
-    if (!lat || !lng) return res.status(400).json({ error: 'lat and lng are required' });
+    if (!lat || !lng) return fail(res, 400, 'lat and lng are required');
 
     const cacheKey = `map:centers:${lat}:${lng}:${radius}:${type || 'all'}`;
     const cached   = await get(cacheKey);
-    if (cached) return res.json(cached);
+    if (cached) return ok(res, cached, 'Centers fetched');
 
     const typeMap = {
       recycling: 'recycling center',
@@ -38,21 +40,34 @@ router.get('/centers', authenticate, async (req, res, next) => {
 
     const response = { centers };
     await setEx(cacheKey, 3600, response);
-    res.json(response);
+    return ok(res, response, 'Centers fetched');
   } catch (err) { next(err); }
 });
 
 // GET /map/bins
 router.get('/bins', authenticate, async (req, res, next) => {
   try {
-    const { lat = 18.52, lng = 73.85 } = req.query;
-    // Static demo data — in production: query MongoDB IoT collection
-    const bins = [
-      { id: '1', lat: +lat + 0.002, lng: +lng + 0.001, fill_percent: 87, type: 'mixed',  address: 'Main Market' },
-      { id: '2', lat: +lat - 0.001, lng: +lng + 0.003, fill_percent: 45, type: 'dry',    address: 'Bus Stand' },
-      { id: '3', lat: +lat + 0.004, lng: +lng - 0.002, fill_percent: 95, type: 'wet',    address: 'Vegetable Market' },
-    ];
-    res.json({ bins });
+    const { ward_id } = req.query;
+    const filter = { status: { $in: ['pending', 'assigned', 'in_progress'] }, 'location.coordinates': { $exists: true } };
+    if (ward_id) filter.wardId = ward_id;
+    else if (req.user.wardId) filter.wardId = req.user.wardId;
+
+    const recent = await Complaint.find(filter)
+      .select('location issueType priority updatedAt address')
+      .sort({ updatedAt: -1 })
+      .limit(50)
+      .lean();
+
+    const bins = recent.map((c, idx) => ({
+      id: String(c._id || idx),
+      lat: c.location.coordinates[1],
+      lng: c.location.coordinates[0],
+      fill_percent: Math.min(100, 30 + (c.priority || 1) * 20),
+      type: c.issueType,
+      address: c.address || 'Unspecified location',
+      source: 'complaint-derived',
+    }));
+    return ok(res, { bins }, 'Bins fetched');
   } catch (err) { next(err); }
 });
 
