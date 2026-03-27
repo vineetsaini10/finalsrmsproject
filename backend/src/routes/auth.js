@@ -17,7 +17,37 @@ const generateTokens = (userId, role) => ({
     { expiresIn: process.env.JWT_REFRESH_EXPIRES_IN || '7d' }),
 });
 
+function normalizePhone(phone) {
+  const digits = String(phone || '').trim().replace(/\D/g, '');
+  if (digits.length === 10) return `+91${digits}`;
+  if (digits.length === 12 && digits.startsWith('91')) return `+${digits}`;
+  return null;
+}
+
+function phoneCandidates(phone) {
+  const raw = String(phone || '').trim();
+  const digits = raw.replace(/\D/g, '');
+  const out = new Set();
+  if (raw) out.add(raw);
+  if (digits) out.add(digits);
+  if (digits.length === 10) {
+    out.add(`+91${digits}`);
+    out.add(`91${digits}`);
+  }
+  if (digits.length === 12 && digits.startsWith('91')) {
+    out.add(digits.slice(2)); // local 10-digit
+    out.add(`+${digits}`);
+  }
+  return [...out];
+}
+
 const generateOTP = () => Math.floor(100000 + Math.random() * 900000).toString();
+const shouldExposeOTP = () => process.env.NODE_ENV !== 'production';
+
+function buildOtpPayload(otp) {
+  return shouldExposeOTP() ? { otp } : {};
+}
+
 async function sendOTP(phone, otp) {
   // Terminal-only OTP delivery for local/dev use.
   // No SMS/email provider call is made here.
@@ -29,7 +59,7 @@ async function sendOTP(phone, otp) {
 // POST /auth/register
 router.post('/register', [
   body('name').trim().isLength({ min: 2, max: 150 }),
-  body('phone').isMobilePhone(),
+  body('phone').custom((value) => !!normalizePhone(value)),
   body('password').isLength({ min: 6 }),
 ], async (req, res, next) => {
   try {
@@ -37,21 +67,33 @@ router.post('/register', [
     if (!errors.isEmpty()) return fail(res, 400, 'Validation failed', { errors: errors.array() });
 
     const { name, phone, email, password, role = 'citizen' } = req.body;
-    const exists = await User.findOne({ $or: [{ phone }, ...(email ? [{ email }] : [])] });
+    const normalizedPhone = normalizePhone(phone);
+    const exists = await User.findOne({
+      $or: [
+        { phone: { $in: phoneCandidates(phone) } },
+        ...(email ? [{ email }] : []),
+      ],
+    });
     if (exists) return fail(res, 409, 'User with this phone/email already exists');
 
     const passwordHash = await bcrypt.hash(password, 12);
     const otp = generateOTP();
     const user = await User.create({
-      name, phone, email: email || undefined, passwordHash,
+      name: String(name).trim(),
+      phone: normalizedPhone,
+      email: email || undefined,
+      passwordHash,
       role, otpSecret: otp, otpExpiresAt: new Date(Date.now() + 10 * 60 * 1000),
     });
     await Gamification.create({ userId: user._id });
-    await sendOTP(phone, otp);
+    await sendOTP(normalizedPhone, otp);
 
     return ok(
       res,
-      { user: { id: user._id, name: user.name, phone: user.phone, role: user.role } },
+      {
+        user: { id: user._id, name: user.name, phone: user.phone, role: user.role },
+        ...buildOtpPayload(otp),
+      },
       'Registration successful. Please verify your phone.',
       201
     );
@@ -63,10 +105,16 @@ router.post('/otp/send', async (req, res, next) => {
   try {
     const { phone } = req.body;
     if (!phone) return fail(res, 400, 'Phone required');
+    const normalizedPhone = normalizePhone(phone);
+    if (!normalizedPhone) return fail(res, 400, 'Invalid phone number');
     const otp = generateOTP();
-    await User.findOneAndUpdate({ phone }, { otpSecret: otp, otpExpiresAt: new Date(Date.now() + 10 * 60 * 1000) });
-    await sendOTP(phone, otp);
-    return ok(res, {}, 'OTP sent successfully');
+    const user = await User.findOneAndUpdate(
+      { phone: { $in: phoneCandidates(phone) } },
+      { phone: normalizedPhone, otpSecret: otp, otpExpiresAt: new Date(Date.now() + 10 * 60 * 1000) }
+    );
+    if (!user) return fail(res, 404, 'User not found');
+    await sendOTP(normalizedPhone, otp);
+    return ok(res, { phone: normalizedPhone, ...buildOtpPayload(otp) }, 'OTP sent successfully');
   } catch (err) { next(err); }
 });
 
@@ -75,7 +123,7 @@ router.post('/otp/verify', async (req, res, next) => {
   try {
     const { phone, otp } = req.body;
     if (!phone || !otp) return fail(res, 400, 'Phone and OTP required');
-    const user = await User.findOne({ phone });
+    const user = await User.findOne({ phone: { $in: phoneCandidates(phone) } });
     if (!user) return fail(res, 404, 'User not found');
     if (user.otpSecret !== otp || new Date(user.otpExpiresAt) < new Date()) {
       return fail(res, 400, 'Invalid or expired OTP');
@@ -93,7 +141,7 @@ router.post('/otp/verify', async (req, res, next) => {
 router.post('/login', [body('phone').notEmpty(), body('password').notEmpty()], async (req, res, next) => {
   try {
     const { phone, password } = req.body;
-    const user = await User.findOne({ phone }).populate('wardId', 'name city');
+    const user = await User.findOne({ phone: { $in: phoneCandidates(phone) } }).populate('wardId', 'name city');
     if (!user) return fail(res, 401, 'Invalid credentials');
     const valid = await bcrypt.compare(password, user.passwordHash);
     if (!valid) return fail(res, 401, 'Invalid credentials');

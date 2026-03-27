@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import Link from 'next/link'
-import { complaintsAPI, gamificationAPI } from '../../utils/api'
+import { complaintsAPI, gamificationAPI, notificationsAPI, trainingAPI } from '../../utils/api'
 import useAuthStore from '../../context/authStore'
 import CitizenLayout from '../../components/shared/CitizenLayout'
 import { StatCard, SectionCard, Badge, PriorityBadge, PageLoader } from '../../components/ui'
@@ -26,6 +26,18 @@ export default function CitizenDashboard() {
     select:   d => d.data,
   })
 
+  const { data: notifications } = useQuery({
+    queryKey: ['dashboard-notifications'],
+    queryFn: () => notificationsAPI.list({ limit: 3 }),
+    select: d => d.data,
+  })
+
+  const { data: modulesData } = useQuery({
+    queryKey: ['dashboard-learning'],
+    queryFn: () => trainingAPI.modules(),
+    select: d => d.data,
+  })
+
   const LEVEL_NAMES = ['','Eco Beginner','Green Citizen','Eco Warrior','Waste Champion','Eco Hero','Planet Guardian']
   const LEVEL_THRESHOLDS = [0, 100, 300, 600, 1000, 1500, 2500]
   const level = g?.level || 1
@@ -38,6 +50,10 @@ export default function CitizenDashboard() {
 
   const complaints = complaintsData?.data || []
   const resolved   = complaints.filter(c => c.status === 'resolved').length
+  const notificationItems = notifications?.notifications || []
+  const unreadNotifications = notifications?.unread_count || 0
+  const modules = modulesData?.modules || []
+  const completedModules = modules.filter((module) => module.completed).length
 
   return (
     <div className="space-y-6">
@@ -184,6 +200,53 @@ export default function CitizenDashboard() {
                   </div>
                 </Link>
               ))}
+            </div>
+          </SectionCard>
+
+          <SectionCard
+            title="Notifications"
+            subtitle={unreadNotifications > 0 ? `${unreadNotifications} unread updates` : 'Latest updates from your account'}
+            action={<Link href="/citizen/notifications"><button className="btn-secondary btn-sm">Open</button></Link>}
+          >
+            <div className="p-4 space-y-3">
+              {notificationItems.map((item) => (
+                <div key={item._id} className="rounded-xl border border-slate-100 p-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="text-sm font-semibold text-slate-800">{item.title}</div>
+                    {!item.isRead && <span className="w-2 h-2 rounded-full bg-blue-500" />}
+                  </div>
+                  {item.body && <div className="text-xs text-slate-500 mt-1 line-clamp-2">{item.body}</div>}
+                </div>
+              ))}
+              {!notificationItems.length && (
+                <div className="text-sm text-slate-400 text-center py-4">No notifications yet.</div>
+              )}
+            </div>
+          </SectionCard>
+
+          <SectionCard
+            title="Learning Progress"
+            subtitle={`${completedModules}/${modules.length || 0} modules completed`}
+            action={<Link href="/citizen/learn"><button className="btn-secondary btn-sm">Continue</button></Link>}
+          >
+            <div className="p-4 space-y-3">
+              <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-green-600 rounded-full"
+                  style={{ width: `${modules.length ? Math.round((completedModules / modules.length) * 100) : 0}%` }}
+                />
+              </div>
+              {modules.slice(0, 3).map((module) => (
+                <div key={module.id} className="flex items-center justify-between gap-3 text-sm">
+                  <span className="text-slate-700 truncate">{module.title}</span>
+                  <span className={module.completed ? 'text-green-600 font-medium' : 'text-slate-400'}>
+                    {module.completed ? 'Done' : `+${module.points_reward || 0} pts`}
+                  </span>
+                </div>
+              ))}
+              {!modules.length && (
+                <div className="text-sm text-slate-400 text-center py-4">Learning modules will appear here.</div>
+              )}
             </div>
           </SectionCard>
         </div>

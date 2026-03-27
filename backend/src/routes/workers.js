@@ -2,13 +2,33 @@ const router = require('express').Router();
 const Worker = require('../models/Worker');
 const { authenticate, authorize } = require('../middleware/auth');
 const { ok, fail } = require('../utils/response');
+const mongoose = require('mongoose');
+
+function resolveWardScope(req, requestedWardId) {
+  if (requestedWardId && !mongoose.isValidObjectId(requestedWardId)) {
+    return { error: { status: 400, message: 'Invalid ward_id' } };
+  }
+
+  if (req.user.role === 'authority') {
+    const ownWardId = req.user.wardId ? String(req.user.wardId) : null;
+    if (!ownWardId) return { error: { status: 400, message: 'Authority user is not assigned to a ward' } };
+    if (requestedWardId && String(requestedWardId) !== ownWardId) {
+      return { error: { status: 403, message: 'Authority users can only access their assigned ward' } };
+    }
+    return { wardId: ownWardId };
+  }
+
+  return { wardId: requestedWardId || req.user.wardId || undefined };
+}
 
 // GET /workers
 router.get('/', authenticate, authorize('authority', 'admin'), async (req, res, next) => {
   try {
-    const { status } = req.query;
+    const { status, ward_id } = req.query;
     const filter = {};
-    if (req.user.wardId) filter.wardId = req.user.wardId;
+    const scope = resolveWardScope(req, ward_id);
+    if (scope.error) return fail(res, scope.error.status, scope.error.message);
+    if (scope.wardId) filter.wardId = scope.wardId;
     if (status)          filter.status  = status;
 
     const workers = await Worker.find(filter)
@@ -39,6 +59,32 @@ router.put('/:id/status', authenticate, authorize('authority', 'admin', 'worker'
     const worker = await Worker.findByIdAndUpdate(req.params.id, update, { new: true });
     if (!worker) return fail(res, 404, 'Worker not found');
     return ok(res, worker, 'Worker status updated');
+  } catch (err) { next(err); }
+});
+
+// POST /workers/demo
+router.post('/demo', authenticate, authorize('authority', 'admin'), async (req, res, next) => {
+  try {
+    const demoEmployeeId = 'DEMO-WORKER-001';
+    const baseFilter = { employeeId: demoEmployeeId };
+    const filter = req.user.wardId ? { ...baseFilter, wardId: req.user.wardId } : baseFilter;
+
+    let worker = await Worker.findOne(filter);
+    if (!worker) {
+      worker = await Worker.create({
+        name: 'Demo Worker',
+        phone: '+919900000001',
+        employeeId: demoEmployeeId,
+        zone: 'Demo Zone',
+        wardId: req.user.wardId || undefined,
+        status: 'available',
+      });
+    } else if (worker.status !== 'available') {
+      worker.status = 'available';
+      await worker.save();
+    }
+
+    return ok(res, { worker }, 'Demo worker ready', 201);
   } catch (err) { next(err); }
 });
 

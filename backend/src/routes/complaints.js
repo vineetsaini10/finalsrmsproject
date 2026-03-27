@@ -5,6 +5,7 @@ const axios   = require('axios');
 const fs = require('fs');
 const path = require('path');
 const { ImageKit } = require('@imagekit/nodejs');
+const mongoose = require('mongoose');
 
 const Complaint    = require('../models/Complaint');
 const Worker       = require('../models/Worker');
@@ -31,6 +32,27 @@ const PRIORITY_MAP = {
   full_dustbin: 2, overflowing_bin: 2,
   missed_collection: 1, stray_animal_waste: 1, other: 1,
 };
+
+function resolveWardScope(req, requestedWardId) {
+  if (requestedWardId && !mongoose.isValidObjectId(requestedWardId)) {
+    return { error: { status: 400, message: 'Invalid ward_id' } };
+  }
+
+  if (req.user.role === 'authority') {
+    const ownWardId = req.user.wardId ? String(req.user.wardId) : null;
+    if (!ownWardId) return { error: { status: 400, message: 'Authority user is not assigned to a ward' } };
+    if (requestedWardId && String(requestedWardId) !== ownWardId) {
+      return { error: { status: 403, message: 'Authority users can only access their assigned ward' } };
+    }
+    return { wardId: ownWardId };
+  }
+
+  if (req.user.role === 'admin') {
+    return { wardId: requestedWardId || undefined };
+  }
+
+  return { wardId: undefined };
+}
 
 async function uploadToStorage(buffer, mimetype) {
   if (imagekit) {
@@ -98,11 +120,15 @@ router.post('/', authenticate, upload.single('image'), async (req, res, next) =>
 // GET /complaints
 router.get('/', authenticate, async (req, res, next) => {
   try {
-    const { status, issue_type, priority, start_date, end_date, page = 1, limit = 20 } = req.query;
+    const { status, issue_type, priority, start_date, end_date, page = 1, limit = 20, ward_id } = req.query;
     const filter = {};
 
     if (req.user.role === 'citizen') filter.userId = req.user._id;
-    else if (req.user.role === 'authority' && req.user.wardId) filter.wardId = req.user.wardId;
+    else {
+      const scope = resolveWardScope(req, ward_id);
+      if (scope.error) return fail(res, scope.error.status, scope.error.message);
+      if (scope.wardId) filter.wardId = scope.wardId;
+    }
 
     if (status)     filter.status    = status;
     if (issue_type) filter.issueType = issue_type;
@@ -134,7 +160,13 @@ router.get('/', authenticate, async (req, res, next) => {
 // GET /complaints/:id
 router.get('/:id', authenticate, async (req, res, next) => {
   try {
-    const complaint = await Complaint.findById(req.params.id)
+    if (!mongoose.isValidObjectId(req.params.id)) return fail(res, 400, 'Invalid complaint id');
+
+    const baseFilter = { _id: req.params.id };
+    if (req.user.role === 'citizen') baseFilter.userId = req.user._id;
+    if (req.user.role === 'authority' && req.user.wardId) baseFilter.wardId = req.user.wardId;
+
+    const complaint = await Complaint.findOne(baseFilter)
       .populate('userId', 'name phone')
       .populate('wardId', 'name city')
       .populate('assignments.workerId', 'name phone')
@@ -150,11 +182,18 @@ router.put('/:id/status', authenticate, authorize('authority', 'admin'), async (
     const { status, rejection_note } = req.body;
     const valid = ['pending','assigned','in_progress','resolved','rejected'];
     if (!valid.includes(status)) return fail(res, 400, 'Invalid status');
+    if (!mongoose.isValidObjectId(req.params.id)) return fail(res, 400, 'Invalid complaint id');
 
     const update = { status, rejectionNote: rejection_note || undefined };
     if (status === 'resolved') update.resolvedAt = new Date();
 
-    const complaint = await Complaint.findByIdAndUpdate(req.params.id, update, { new: true });
+    const complaint = await Complaint.findOneAndUpdate(
+      req.user.role === 'authority' && req.user.wardId
+        ? { _id: req.params.id, wardId: req.user.wardId }
+        : { _id: req.params.id },
+      update,
+      { new: true }
+    );
     if (!complaint) return fail(res, 404, 'Complaint not found');
     await notifyCitizen(
       complaint.userId,
@@ -171,9 +210,19 @@ router.post('/:id/assign', authenticate, authorize('authority', 'admin'), async 
   try {
     const { worker_id, notes } = req.body;
     if (!worker_id) return fail(res, 400, 'worker_id required');
+    if (!mongoose.isValidObjectId(req.params.id)) return fail(res, 400, 'Invalid complaint id');
+    if (!mongoose.isValidObjectId(worker_id)) return fail(res, 400, 'Invalid worker_id');
 
-    const complaint = await Complaint.findByIdAndUpdate(
-      req.params.id,
+    const worker = await Worker.findById(worker_id).lean();
+    if (!worker) return fail(res, 404, 'Worker not found');
+    if (req.user.role === 'authority' && req.user.wardId && String(worker.wardId) !== String(req.user.wardId)) {
+      return fail(res, 403, 'Worker does not belong to your ward');
+    }
+
+    const complaint = await Complaint.findOneAndUpdate(
+      req.user.role === 'authority' && req.user.wardId
+        ? { _id: req.params.id, wardId: req.user.wardId }
+        : { _id: req.params.id },
       {
         status: 'assigned',
         $push: {
@@ -200,7 +249,10 @@ router.post('/:id/assign', authenticate, authorize('authority', 'admin'), async 
 // POST /complaints/:id/upvote
 router.post('/:id/upvote', authenticate, async (req, res, next) => {
   try {
-    const c = await Complaint.findByIdAndUpdate(req.params.id, { $inc: { upvotes: 1 } }, { new: true });
+    if (!mongoose.isValidObjectId(req.params.id)) return fail(res, 400, 'Invalid complaint id');
+    const filter = { _id: req.params.id };
+    if (req.user.role === 'citizen') filter.userId = req.user._id;
+    const c = await Complaint.findOneAndUpdate(filter, { $inc: { upvotes: 1 } }, { new: true });
     if (!c) return fail(res, 404, 'Complaint not found');
     const payload = { id: c._id, upvotes: c.upvotes };
     return ok(res, payload, 'Upvoted');

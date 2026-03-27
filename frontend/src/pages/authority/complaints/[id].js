@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useQuery, useMutation } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useRouter } from 'next/router'
 import { complaintsAPI, workersAPI } from '../../../utils/api'
 import useAuthStore from '../../../context/authStore'
@@ -12,6 +12,7 @@ export default function AuthComplaintDetailPage() {
   const router = useRouter()
   const { id } = router.query
   const { user } = useAuthStore()
+  const qc = useQueryClient()
   const [assignModal, setAssignModal] = useState(false)
   const [workerId, setWorkerId] = useState("")
   const [notes, setNotes] = useState("")
@@ -27,12 +28,25 @@ export default function AuthComplaintDetailPage() {
     queryKey: ["workers", user?.wardId],
     queryFn: () => workersAPI.list({ ward_id: user?.wardId }),
     select: d => d.data,
+    enabled: Boolean(user?.role && ['authority', 'admin'].includes(user.role)),
   })
 
   const assignMut = useMutation({
     mutationFn: () => complaintsAPI.assign(id, workerId, notes),
     onSuccess: () => { toast.success("Assigned successfully"); refetch(); setAssignModal(false) },
-    onError: () => toast.error("Assignment failed"),
+    onError: (err) => toast.error(err?.response?.data?.message || "Assignment failed"),
+  })
+  const demoWorkerMut = useMutation({
+    mutationFn: () => workersAPI.createDemo(),
+    onSuccess: (resp) => {
+      const demoWorker = resp?.data?.worker
+      if (demoWorker?._id) {
+        setWorkerId(demoWorker._id)
+        toast.success('Demo worker is ready')
+      }
+      qc.invalidateQueries(["workers", user?.wardId])
+    },
+    onError: () => toast.error('Failed to create demo worker'),
   })
 
   const statusMut = useMutation({
@@ -165,6 +179,14 @@ export default function AuthComplaintDetailPage() {
         <div className="space-y-4">
           <div>
             <label className="label">Select Worker</label>
+            <button
+              type="button"
+              onClick={() => demoWorkerMut.mutate()}
+              disabled={demoWorkerMut.isPending}
+              className="mb-2 text-xs text-blue-600 hover:underline"
+            >
+              {demoWorkerMut.isPending ? 'Preparing demo worker...' : 'Use demo worker'}
+            </button>
             <select className="select" value={workerId} onChange={e => setWorkerId(e.target.value)}>
               <option value="">Choose available worker...</option>
               {(workersData?.workers || []).filter(w => w.status === "available").map(w => (
@@ -177,7 +199,13 @@ export default function AuthComplaintDetailPage() {
             <textarea className="input resize-none h-20" value={notes} onChange={e => setNotes(e.target.value)} placeholder="Instructions..." />
           </div>
           <div className="flex gap-3">
-            <button onClick={() => assignMut.mutate()} disabled={!workerId || assignMut.isPending} className="btn-primary flex-1">
+            <button onClick={() => {
+              if (!id || String(id).length < 12) {
+                toast.error('Invalid complaint id')
+                return
+              }
+              assignMut.mutate()
+            }} disabled={!workerId || assignMut.isPending} className="btn-primary flex-1">
               {assignMut.isPending ? "Assigning..." : "Confirm Assignment"}
             </button>
             <button onClick={() => setAssignModal(false)} className="btn-secondary">Cancel</button>

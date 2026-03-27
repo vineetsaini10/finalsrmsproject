@@ -2,10 +2,10 @@ import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import dynamic from 'next/dynamic'
 import Link from 'next/link'
-import { reportsAPI, complaintsAPI, workersAPI } from '../../utils/api'
+import { reportsAPI, complaintsAPI, workersAPI, aiAPI } from '../../utils/api'
 import useAuthStore from '../../context/authStore'
 import AuthorityLayout from '../../components/authority/AuthorityLayout'
-import { StatCard, SectionCard, Badge, PriorityBadge, Tabs } from '../../components/ui'
+import { StatCard, SectionCard, Badge, Tabs } from '../../components/ui'
 import TrendChart from '../../components/authority/TrendChart'
 import { formatDistanceToNow } from 'date-fns'
 
@@ -25,26 +25,38 @@ export default function AuthorityDashboard() {
   const [period, setPeriod] = useState('today')
 
   const { data: dash, isLoading } = useQuery({
-    queryKey: ['authority-dashboard', period],
+    queryKey: ['authority-dashboard', period, user?.wardId],
     queryFn: () => reportsAPI.dashboard({ period, ward_id: user?.wardId }),
     select: d => d.data,
     refetchInterval: 30_000,
+    enabled: Boolean(user?.role && ['authority', 'admin'].includes(user.role)),
   })
 
   const { data: urgent } = useQuery({
-    queryKey: ['urgent-complaints'],
+    queryKey: ['urgent-complaints', user?.wardId],
     queryFn: () => complaintsAPI.list({ status: 'pending', priority: 3, limit: 8 }),
     select: d => d.data,
     refetchInterval: 60_000,
+    enabled: Boolean(user?.role && ['authority', 'admin'].includes(user.role)),
   })
 
   const { data: workers } = useQuery({
-    queryKey: ['workers-dashboard'],
+    queryKey: ['workers-dashboard', user?.wardId],
     queryFn: () => workersAPI.list({ ward_id: user?.wardId }),
     select: d => d.data,
+    enabled: Boolean(user?.role && ['authority', 'admin'].includes(user.role)),
+  })
+
+  const { data: hotspotsData } = useQuery({
+    queryKey: ['dashboard-hotspots', user?.wardId],
+    queryFn: () => aiAPI.hotspots({ ward_id: user?.wardId, days: 14 }),
+    select: d => d.data,
+    refetchInterval: 120_000,
+    enabled: Boolean(user?.role && ['authority', 'admin'].includes(user.role)),
   })
 
   const s = dash?.summary || {}
+  const hotspots = hotspotsData?.hotspots || []
 
   const PERIOD_TABS = [
     { value: 'today', label: 'Today' },
@@ -152,9 +164,79 @@ export default function AuthorityDashboard() {
                     </div>
                   )
                 })}
+                {!(dash?.by_type || []).length && (
+                  <div className="text-sm text-slate-400 text-center py-6">No complaint volume yet for this period.</div>
+                )}
               </div>
             </SectionCard>
           </div>
+        </div>
+
+        <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+          <SectionCard
+            title="Hotspot Snapshot"
+            subtitle="Top AI-detected clusters in the last 14 days"
+            action={<Link href="/authority/hotspots"><button className="btn-secondary btn-sm">Open Hotspots</button></Link>}
+          >
+            <div className="p-5 space-y-3">
+              {hotspots.slice(0, 3).map((hotspot, index) => (
+                <div key={hotspot.id || index} className="rounded-xl border border-slate-100 p-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <div className="text-sm font-semibold text-slate-800">{hotspot.ward_name || user?.wardName || 'Assigned ward'}</div>
+                      <div className="text-xs text-slate-400 mt-1">
+                        {Number.isFinite(Number(hotspot.centroid_lat)) ? Number(hotspot.centroid_lat).toFixed(4) : '-'},
+                        {' '}
+                        {Number.isFinite(Number(hotspot.centroid_lng)) ? Number(hotspot.centroid_lng).toFixed(4) : '-'}
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-base font-bold text-red-600">{Number(hotspot.severity_score || 0).toFixed(2)}</div>
+                      <div className="text-xs text-slate-400">{hotspot.complaint_count || 0} complaints</div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+              {!hotspots.length && (
+                <div className="text-sm text-slate-400 text-center py-6">No hotspot clusters detected right now.</div>
+              )}
+            </div>
+          </SectionCard>
+
+          <SectionCard title="Operations Shortcuts" subtitle="Jump to the rest of the control surface">
+            <div className="grid grid-cols-2 gap-3 p-5">
+              {[
+                { href: '/authority/complaints', label: 'Complaints', icon: '📋', tone: 'bg-blue-50 border-blue-100' },
+                { href: '/authority/workforce', label: 'Workforce', icon: '👷', tone: 'bg-amber-50 border-amber-100' },
+                { href: '/authority/hotspots', label: 'Hotspots', icon: '🔥', tone: 'bg-red-50 border-red-100' },
+                { href: '/authority/reports', label: 'Reports', icon: '📊', tone: 'bg-green-50 border-green-100' },
+              ].map((item) => (
+                <Link key={item.href} href={item.href}>
+                  <div className={`rounded-xl border p-4 text-center transition-all hover:shadow-sm ${item.tone}`}>
+                    <div className="text-2xl mb-2">{item.icon}</div>
+                    <div className="text-sm font-semibold text-slate-800">{item.label}</div>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          </SectionCard>
+
+          <SectionCard title="Service Health" subtitle="Quick operational read for this ward">
+            <div className="p-5 space-y-4">
+              <div className="rounded-xl border border-slate-100 p-4">
+                <div className="text-xs text-slate-400 uppercase tracking-[0.16em]">Open workload</div>
+                <div className="mt-2 text-2xl font-semibold text-slate-900">{(s.urgent_open || 0) + (s.in_progress || 0)}</div>
+                <div className="mt-1 text-sm text-slate-500">Urgent plus in-progress complaints currently active.</div>
+              </div>
+              <div className="rounded-xl border border-slate-100 p-4">
+                <div className="text-xs text-slate-400 uppercase tracking-[0.16em]">Available crew</div>
+                <div className="mt-2 text-2xl font-semibold text-slate-900">
+                  {(workers?.workers || []).filter((worker) => worker.status === 'available').length}
+                </div>
+                <div className="mt-1 text-sm text-slate-500">Workers ready for new assignments.</div>
+              </div>
+            </div>
+          </SectionCard>
         </div>
 
         {/* Urgent complaints table */}

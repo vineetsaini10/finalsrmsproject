@@ -25,7 +25,7 @@ pip install -r requirements.txt
 
 3. Ensure trained waste-classifier weights exist at:
 ```bash
-aiml/models/waste_classifier/best_model.pth
+aiml/models/waste_classifier/model.pth
 ```
 The API now fails fast if this model file is missing to avoid dummy predictions.
 
@@ -55,6 +55,7 @@ Once running, you can access the interactive Swagger documentation at: `http://l
 - **Example Response**:
 ```json
 {
+  "waste_type": "plastic",
   "class": "plastic",
   "confidence": 0.9452,
   "is_confident": true,
@@ -136,3 +137,4 @@ Once running, you can access the interactive Swagger documentation at: `http://l
   ]
 }
 ```
+

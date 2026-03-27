@@ -11,7 +11,7 @@ export default function HeatMap({ wardId }) {
   const { data: heatmapData } = useQuery({
     queryKey: ['heatmap', wardId],
     queryFn: () => aiAPI.heatmap({ ward_id: wardId, days: 14 }),
-    select: d => d.data?.data || d.data,
+    select: d => d.data,
     refetchInterval: 120_000,
   })
 

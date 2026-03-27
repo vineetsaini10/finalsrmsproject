@@ -36,7 +36,7 @@ export default function ReportPage() {
     try {
       const fd = new FormData(); fd.append('image', file)
       const response = await aiAPI.classify(fd)
-      const result = response.data?.data?.result || response.data?.result
+      const result = response.data?.result
       if (result) {
         setAiResult(result)
         toast.success(`AI: ${result.label} waste detected (${Math.round(result.confidence * 100)}%)`)

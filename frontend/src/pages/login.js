@@ -18,7 +18,7 @@ export default function LoginPage() {
       toast.success('Welcome back!')
       router.push(role === 'authority' || role === 'admin' ? '/authority/dashboard' : '/citizen/dashboard')
     } catch (err) {
-      const msg = err.response?.data?.error || 'Invalid credentials'
+      const msg = err.response?.data?.message || err.response?.data?.error || 'Invalid credentials'
       if (err.response?.data?.code === 'UNVERIFIED') {
         toast.error('Phone not verified')
         router.push(`/verify-otp?phone=${form.phone}`)

@@ -25,12 +25,19 @@ api.interceptors.response.use(
   },
   async (error) => {
     const original = error.config
-    if (error.response?.status === 401 &&
-        error.response?.data?.code === 'TOKEN_EXPIRED' &&
-        !original._retry) {
+    const status = error.response?.status
+    const code = error.response?.data?.code
+    const refreshToken = Cookies.get('refreshToken')
+    const isAuthPath = typeof original?.url === 'string' && original.url.startsWith('/auth/')
+    const canRetryWithRefresh =
+      status === 401 &&
+      !original?._retry &&
+      !!refreshToken &&
+      !isAuthPath
+
+    if (canRetryWithRefresh) {
       original._retry = true
       try {
-        const refreshToken = Cookies.get('refreshToken')
         const { data } = await axios.post(
           `${API_BASE_URL}/auth/refresh`,
           { refreshToken }
@@ -43,8 +50,16 @@ api.interceptors.response.use(
       } catch {
         Cookies.remove('accessToken')
         Cookies.remove('refreshToken')
-        window.location.href = '/login'
+        if (typeof window !== 'undefined' && window.location.pathname !== '/login') {
+          window.location.href = '/login'
+        }
       }
+    }
+
+    // If token is expired and we cannot refresh, force clean logout state.
+    if (status === 401 && (code === 'TOKEN_EXPIRED' || code === 'UNAUTHORIZED' || !refreshToken)) {
+      Cookies.remove('accessToken')
+      Cookies.remove('refreshToken')
     }
     return Promise.reject(error)
   }
@@ -86,6 +101,7 @@ export const aiAPI = {
     headers: { 'Content-Type': 'multipart/form-data' },
   }),
   hotspots: (params) => api.get('/ai/hotspots', { params }),
+  refreshHotspots: (wardId, days = 7) => api.post('/ai/hotspots/refresh', { ward_id: wardId, days }),
   predictions: (wardId) => api.get(`/ai/predictions/ward/${wardId}`),
   heatmap: (params) => api.get('/ai/heatmap', { params }),
 
@@ -122,6 +138,7 @@ export const gamificationAPI = {
 // ── Workers ──────────────────────────────────────────────────────────────────
 export const workersAPI = {
   list: (params) => api.get('/workers', { params }),
+  createDemo: () => api.post('/workers/demo'),
   updateStatus: (id, status, lat, lng) =>
     api.put(`/workers/${id}/status`, { status, lat, lng }),
 }

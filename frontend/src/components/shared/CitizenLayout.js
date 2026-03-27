@@ -5,6 +5,7 @@ import useAuthStore from '../../context/authStore'
 import { useQuery } from '@tanstack/react-query'
 import { notificationsAPI } from '../../utils/api'
 import toast from 'react-hot-toast'
+import Cookies from 'js-cookie'
 
 const NAV = [
   { href: '/citizen/dashboard', label: 'Dashboard',   icon: '🏠' },
@@ -17,14 +18,17 @@ const NAV = [
 
 export default function CitizenLayout({ children }) {
   const router   = useRouter()
-  const { user, logout } = useAuthStore()
+  const { user, logout, isAuthenticated } = useAuthStore()
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const hasAccessToken = typeof window !== 'undefined' && !!Cookies.get('accessToken')
 
   const { data: unread = 0 } = useQuery({
-    queryKey: ['notif-count'],
+    queryKey: ['notif-count', user?._id],
     queryFn:  () => notificationsAPI.list({ limit: 1 }),
     select:   d => d.data?.unread_count || 0,
     refetchInterval: 60_000,
+    enabled: Boolean(user?._id && isAuthenticated && hasAccessToken),
+    retry: false,
   })
 
   const handleLogout = async () => {

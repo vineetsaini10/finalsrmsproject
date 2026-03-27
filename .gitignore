@@ -16,3 +16,7 @@ coverage/
 .pytest_cache/
 models/weights/*.pth
 data/
+aiml/.cache/
+aiml/.torch/
+aiml/models/waste_classifier/*.pth
+aiml/models/waste_classifier/*.pt

@@ -4,6 +4,8 @@ import CitizenLayout from '../../components/shared/CitizenLayout'
 import { SectionCard, EmptyState } from '../../components/ui'
 import { formatDistanceToNow } from 'date-fns'
 import toast from 'react-hot-toast'
+import useAuthStore from '../../context/authStore'
+import Cookies from 'js-cookie'
 
 const TYPE_CONFIG = {
   complaint_update: { icon: '📋', color: 'bg-blue-50 border-blue-100',   iconBg: 'bg-blue-100 text-blue-600'   },
@@ -14,11 +16,15 @@ const TYPE_CONFIG = {
 
 export default function NotificationsPage() {
   const qc = useQueryClient()
+  const { user, isAuthenticated } = useAuthStore()
+  const hasAccessToken = typeof window !== 'undefined' && !!Cookies.get('accessToken')
 
   const { data, isLoading } = useQuery({
-    queryKey: ['notifications'],
+    queryKey: ['notifications', user?._id],
     queryFn:  () => notificationsAPI.list({ limit: 30 }),
     select: d => d.data,
+    enabled: Boolean(user?._id && isAuthenticated && hasAccessToken),
+    retry: false,
   })
 
   const markAllMut = useMutation({

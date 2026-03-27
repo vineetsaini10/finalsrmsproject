@@ -1,5 +1,4 @@
-from fastapi import APIRouter, File, UploadFile, HTTPException, Depends
-from typing import List
+from fastapi import APIRouter, File, UploadFile, HTTPException
 from api.controllers import (
     ClassificationResponse, 
     HotspotRequest, 
@@ -20,16 +19,29 @@ async def predict_waste(file: UploadFile = File(...)):
     """
     Classifies an uploaded waste image into categories (wet, dry, plastic, hazardous).
     """
-    if not file.content_type.startswith("image/"):
+    if not file.content_type or not file.content_type.startswith("image/"):
         raise HTTPException(status_code=400, detail="File must be an image.")
         
     try:
         contents = await file.read()
+        if not contents:
+            raise HTTPException(status_code=400, detail="Empty image file.")
         result = image_service.predict(contents)
         return ClassificationResponse(**result)
+    except HTTPException:
+        raise
+    except ValueError as e:
+        logger.error(f"Invalid image input: {e}")
+        raise HTTPException(status_code=400, detail=str(e))
+    except FileNotFoundError as e:
+        logger.error(f"Model file missing: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+    except RuntimeError as e:
+        logger.error(f"Inference runtime error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
     except Exception as e:
         logger.error(f"Error classifying image: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Unexpected prediction error.")
 
 @router.post("/detect-hotspot", response_model=HotspotResponse)
 async def detect_hotspot(request: HotspotRequest):
@@ -50,7 +62,7 @@ async def predict_trend(request: PredictionRequest):
     Predicts future waste generation trends based on historical data.
     """
     try:
-        historical = [item.dict() for item in request.historical_data]
+        historical = [item.model_dump() for item in request.historical_data]
         forecast = prediction_service.predict_trend(
             historical_data=historical, 
             forecast_days=request.forecast_days

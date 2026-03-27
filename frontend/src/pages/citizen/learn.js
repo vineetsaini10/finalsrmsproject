@@ -81,7 +81,7 @@ export default function LearnPage() {
   const submitMutation = useMutation({
     mutationFn: trainingAPI.submitQuiz,
     onSuccess: (res) => {
-      const { passed, points_earned, already_rewarded } = res.data
+      const { passed, points_earned, already_rewarded } = res.data || {}
       if (!passed) {
         toast.error('Quiz failed. Try again.')
       } else if (already_rewarded) {

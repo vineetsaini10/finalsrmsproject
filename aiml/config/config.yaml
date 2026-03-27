@@ -8,7 +8,7 @@ server:
   reload: true
 
 model_paths:
-  waste_classifier: "models/waste_classifier/best_model.pth"
+  waste_classifier: "models/waste_classifier/model.pth"
   hotspot_model: "models/hotspot_model/dbscan_model.pkl"
   prediction_model: "models/prediction_model/prophet_model.pkl"
 
@@ -19,6 +19,8 @@ data_paths:
 classifier:
   image_size: [224, 224]
   classes: ["wet", "dry", "plastic", "hazardous"]
+  norm_mean: [0.485, 0.456, 0.406]
+  norm_std: [0.229, 0.224, 0.225]
   confidence_threshold: 0.60
   model_architecture: "mobilenet_v2"
 

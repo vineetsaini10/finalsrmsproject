@@ -32,12 +32,14 @@ export default function AuthorityComplaints() {
     }),
     select: d => d.data,
     keepPreviousData: true,
+    enabled: Boolean(user?.role && ['authority', 'admin'].includes(user.role)),
   })
 
   const { data: workersData } = useQuery({
     queryKey: ['workers', user?.wardId],
     queryFn:  () => workersAPI.list({ ward_id: user?.wardId }),
     select: d => d.data,
+    enabled: Boolean(user?.role && ['authority', 'admin'].includes(user.role)),
   })
 
   const assignMut = useMutation({
@@ -48,7 +50,19 @@ export default function AuthorityComplaints() {
       qc.invalidateQueries(['authority-dashboard'])
       setAssignModal(null); setWorkerId(''); setNotes('')
     },
-    onError: () => toast.error('Assignment failed'),
+    onError: (err) => toast.error(err?.response?.data?.message || 'Assignment failed'),
+  })
+  const demoWorkerMut = useMutation({
+    mutationFn: () => workersAPI.createDemo(),
+    onSuccess: (resp) => {
+      const demoWorker = resp?.data?.worker
+      if (demoWorker?._id) {
+        setWorkerId(demoWorker._id)
+        toast.success('Demo worker is ready')
+      }
+      qc.invalidateQueries(['workers', user?.wardId])
+    },
+    onError: () => toast.error('Failed to create demo worker'),
   })
 
   const statusMut = useMutation({
@@ -177,6 +191,14 @@ export default function AuthorityComplaints() {
             </div>
             <div>
               <label className="label">Select Worker</label>
+              <button
+                type="button"
+                onClick={() => demoWorkerMut.mutate()}
+                disabled={demoWorkerMut.isPending}
+                className="mb-2 text-xs text-blue-600 hover:underline"
+              >
+                {demoWorkerMut.isPending ? 'Preparing demo worker...' : 'Use demo worker'}
+              </button>
               <select className="select" value={workerId} onChange={e => setWorkerId(e.target.value)}>
                 <option value="">Choose available worker...</option>
                 {(workersData?.workers || []).filter(w => w.status === 'available').map(w => (
@@ -190,7 +212,13 @@ export default function AuthorityComplaints() {
                 value={notes} onChange={e => setNotes(e.target.value)} />
             </div>
             <div className="flex gap-3 pt-2">
-              <button onClick={() => assignMut.mutate({ id: assignModal._id, wid: workerId })}
+              <button onClick={() => {
+                if (!assignModal?._id || String(assignModal._id).length < 12) {
+                  toast.error('Invalid complaint id')
+                  return
+                }
+                assignMut.mutate({ id: assignModal._id, wid: workerId })
+              }}
                 disabled={!workerId || assignMut.isPending}
                 className="btn-primary flex-1">
                 {assignMut.isPending ? 'Assigning...' : 'Assign Worker'}

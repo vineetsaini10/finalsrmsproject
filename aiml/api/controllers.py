@@ -4,6 +4,7 @@ from typing import List, Optional
 # --- Classification Models ---
 
 class ClassificationResponse(BaseModel):
+    waste_type: str
     class_name: str = Field(..., alias="class")
     confidence: float
     is_confident: bool

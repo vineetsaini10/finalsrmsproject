@@ -4,12 +4,34 @@ const Worker    = require('../models/Worker');
 const Gamification = require('../models/Gamification');
 const { authenticate, authorize } = require('../middleware/auth');
 const { ok } = require('../utils/response');
+const mongoose = require('mongoose');
+
+function resolveWardScope(req, requestedWardId) {
+  if (requestedWardId && !mongoose.isValidObjectId(requestedWardId)) {
+    return { error: { status: 400, message: 'Invalid ward_id' } };
+  }
+
+  if (req.user.role === 'authority') {
+    const ownWardId = req.user.wardId ? String(req.user.wardId) : null;
+    if (!ownWardId) return { error: { status: 400, message: 'Authority user is not assigned to a ward' } };
+    if (requestedWardId && String(requestedWardId) !== ownWardId) {
+      return { error: { status: 403, message: 'Authority users can only access their assigned ward' } };
+    }
+    return { wardId: ownWardId };
+  }
+
+  return { wardId: requestedWardId || req.user.wardId || undefined };
+}
 
 // GET /reports/dashboard
 router.get('/dashboard', authenticate, authorize('authority', 'admin'), async (req, res, next) => {
   try {
-    const { period = 'today' } = req.query;
-    const wardId = req.user.wardId;
+    const { period = 'today', ward_id } = req.query;
+    const scope = resolveWardScope(req, ward_id);
+    if (scope.error) {
+      return res.status(scope.error.status).json({ success: false, data: null, message: scope.error.message });
+    }
+    const wardId = scope.wardId;
     const intervalMap = { today: 1, week: 7, month: 30 };
     const days = intervalMap[period] || 1;
     const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
@@ -89,9 +111,13 @@ router.get('/dashboard', authenticate, authorize('authority', 'admin'), async (r
 // GET /reports/export — CSV
 router.get('/export', authenticate, authorize('authority', 'admin'), async (req, res, next) => {
   try {
-    const { start_date, end_date } = req.query;
+    const { start_date, end_date, ward_id } = req.query;
     const filter = {};
-    if (req.user.wardId) filter.wardId = req.user.wardId;
+    const scope = resolveWardScope(req, ward_id);
+    if (scope.error) {
+      return res.status(scope.error.status).json({ success: false, data: null, message: scope.error.message });
+    }
+    if (scope.wardId) filter.wardId = scope.wardId;
     if (start_date || end_date) {
       filter.createdAt = {};
       if (start_date) filter.createdAt.$gte = new Date(start_date);
@@ -122,7 +148,11 @@ router.get('/export', authenticate, authorize('authority', 'admin'), async (req,
 // GET /reports/citizen-participation
 router.get('/citizen-participation', authenticate, authorize('authority', 'admin'), async (req, res, next) => {
   try {
-    const wardId = req.query.ward_id || req.user.wardId;
+    const scope = resolveWardScope(req, req.query.ward_id);
+    if (scope.error) {
+      return res.status(scope.error.status).json({ success: false, data: null, message: scope.error.message });
+    }
+    const wardId = scope.wardId;
     const since  = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
     const filter = { createdAt: { $gte: since } };
     if (wardId) filter.wardId = wardId;

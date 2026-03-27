@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import useAuthStore from '../../context/authStore'
 import AuthorityLayout from '../../components/authority/AuthorityLayout'
@@ -19,14 +19,16 @@ export default function SettingsPage() {
     complaintUpdates: true,
   })
 
-  useQuery({
+  const { data: settingsData } = useQuery({
     queryKey: ['auth-settings'],
     queryFn: () => authAPI.getSettings(),
     select: (res) => res.data,
-    onSuccess: (data) => {
-      setNotifications((prev) => ({ ...prev, ...(data?.notificationPrefs || {}) }))
-    },
   })
+
+  useEffect(() => {
+    if (!settingsData?.notificationPrefs) return
+    setNotifications((prev) => ({ ...prev, ...settingsData.notificationPrefs }))
+  }, [settingsData])
 
   const saveMutation = useMutation({
     mutationFn: authAPI.updateSettings,

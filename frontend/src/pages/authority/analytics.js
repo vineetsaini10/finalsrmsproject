@@ -18,7 +18,7 @@ export default function AnalyticsPage() {
   const { data: hotData } = useQuery({
     queryKey: ['analytics-hotspots', user?.wardId],
     queryFn:  () => aiAPI.hotspots({ ward_id: user?.wardId, days: 30 }),
-    select: d => d.data?.data || d.data,
+    select: d => d.data,
   })
 
   const { data: participation } = useQuery({

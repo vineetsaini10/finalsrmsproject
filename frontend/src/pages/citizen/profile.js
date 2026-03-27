@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { authAPI, gamificationAPI } from '../../utils/api'
 import useAuthStore from '../../context/authStore'
@@ -19,15 +19,6 @@ export default function ProfilePage() {
     queryKey: ['auth-me'],
     queryFn: () => authAPI.me(),
     select: (res) => res.data,
-    onSuccess: (data) => {
-      setForm({
-        name: data?.name || '',
-        email: data?.email || '',
-        bio: data?.profile?.bio || '',
-        address: data?.profile?.address || '',
-      })
-      updateUser(data)
-    },
   })
 
   const { data: g } = useQuery({
@@ -73,6 +64,17 @@ export default function ProfilePage() {
   }
 
   const profile = me || user || {}
+
+  useEffect(() => {
+    if (!me) return
+    setForm({
+      name: me?.name || '',
+      email: me?.email || '',
+      bio: me?.profile?.bio || '',
+      address: me?.profile?.address || '',
+    })
+    updateUser(me)
+  }, [me, updateUser])
 
   return (
     <div>

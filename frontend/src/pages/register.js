@@ -8,13 +8,14 @@ export default function RegisterPage() {
   const router = useRouter()
   const [step, setStep] = useState(1)
   const [loading, setLoading] = useState(false)
+  const [demoOTP, setDemoOTP] = useState('')
   const [form, setForm] = useState({ name: '', phone: '', email: '', password: '', otp: '', role: 'citizen' })
 
   const handleRegister = async (e) => {
     e.preventDefault()
     setLoading(true)
     try {
-      await authAPI.register({ 
+      const resp = await authAPI.register({
         name: form.name, 
         phone: form.phone, 
         email: form.email, 
@@ -22,9 +23,12 @@ export default function RegisterPage() {
         role: form.role
       })
       toast.success('OTP sent to your phone!')
+      if (resp?.data?.otp) {
+        setDemoOTP(resp.data.otp)
+      }
       setStep(2)
     } catch (err) {
-      toast.error(err.response?.data?.error || 'Registration failed')
+      toast.error(err.response?.data?.message || err.response?.data?.error || 'Registration failed')
     } finally { setLoading(false) }
   }
 
@@ -36,7 +40,7 @@ export default function RegisterPage() {
       toast.success('Phone verified! Welcome to SwachhaNet 🌿')
       router.push('/login')
     } catch (err) {
-      toast.error(err.response?.data?.error || 'OTP verification failed')
+      toast.error(err.response?.data?.message || err.response?.data?.error || 'OTP verification failed')
     } finally { setLoading(false) }
   }
 
@@ -154,6 +158,12 @@ export default function RegisterPage() {
             <>
               <h2 className="text-2xl font-bold text-slate-900 mb-1">Verify your phone</h2>
               <p className="text-sm text-slate-500 mb-6">Enter the 6-digit OTP sent to <strong>{form.phone}</strong></p>
+              {!!demoOTP && (
+                <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-xl">
+                  <p className="text-xs text-amber-700 font-semibold">Demo OTP</p>
+                  <p className="text-lg font-bold tracking-[0.3em] text-amber-900 mt-1">{demoOTP}</p>
+                </div>
+              )}
               <form onSubmit={handleVerify} className="space-y-4">
                 <div>
                   <label className="label">One-Time Password</label>
@@ -166,7 +176,10 @@ export default function RegisterPage() {
                   {loading ? 'Verifying...' : 'Verify & Continue'}
                 </button>
                 <button type="button"
-                  onClick={() => authAPI.sendOTP(form.phone).then(() => toast.success('OTP resent!'))}
+                  onClick={() => authAPI.sendOTP(form.phone).then((resp) => {
+                    if (resp?.data?.otp) setDemoOTP(resp.data.otp)
+                    toast.success('OTP resent!')
+                  })}
                   className="w-full text-sm text-green-600 hover:underline text-center">
                   Didn't receive it? Resend OTP
                 </button>
