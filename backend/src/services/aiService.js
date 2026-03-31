@@ -6,23 +6,31 @@ const rawAIML = (process.env.AIML_SERVICE_URL || process.env.AI_SERVICE_URL || '
 const AIML_BASE_URL = rawAIML.endsWith('/api/v1') ? rawAIML : `${rawAIML}/api/v1`;
 
 class AIService {
-  async predictWaste(fileBuffer, mimeType, filename) {
-    try {
-      const form = new FormData();
-      form.append('file', fileBuffer, {
-        filename: filename || 'waste-image.jpg',
-        contentType: mimeType || 'image/jpeg',
-      });
+  async predictWaste(fileBuffer, mimeType, filename, retries = 3) {
+    let delay = 1000;
+    for (let i = 0; i < retries; i++) {
+      try {
+        const form = new FormData();
+        form.append('file', fileBuffer, {
+          filename: filename || 'waste-image.jpg',
+          contentType: mimeType || 'image/jpeg',
+        });
 
-      const response = await axios.post(`${AIML_BASE_URL}/predict-waste`, form, {
-        headers: form.getHeaders(),
-        timeout: 60000,
-      });
+        const response = await axios.post(`${AIML_BASE_URL}/predict-waste`, form, {
+          headers: form.getHeaders(),
+          timeout: 60000,
+        });
 
-      return response.data;
-    } catch (error) {
-      logger.error('Error calling AIML /predict-waste:', error.message);
-      throw error;
+        return response.data;
+      } catch (error) {
+        if (i === retries - 1) {
+          logger.error(`Failed to call AIML /predict-waste after ${retries} attempts:`, error.message);
+          throw error;
+        }
+        logger.warn(`Retry ${i + 1}/${retries} for /predict-waste in ${delay}ms...`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+        delay *= 2;
+      }
     }
   }
 

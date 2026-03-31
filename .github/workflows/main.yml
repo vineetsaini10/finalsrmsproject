@@ -1,0 +1,67 @@
+name: Automated Reliability Pipeline
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    services:
+      mongodb:
+        image: mongo:latest
+        ports:
+          - 27017:27017
+      redis:
+        image: redis:alpine
+        ports:
+          - 6379:6379
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Set up Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: '18'
+
+    - name: Install Backend Dependencies
+      run: |
+        cd backend
+        npm install
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.10'
+
+    - name: Install Python Dependencies
+      run: |
+        pip install requests numpy scikit-learn matplotlib seaborn pytest coverage
+        cd aiml
+        pip install -r requirements.txt
+
+    - name: Run Backend Tests
+      run: |
+        cd backend
+        npm test
+
+    - name: Run ML Validation
+      run: |
+        python3 testing/scripts/dataset_loader.py
+        python3 testing/scripts/ml_validator.py
+
+    - name: Run Database Integrity
+      run: |
+        node testing/scripts/db_validator.js
+
+    - name: Upload Test Reports
+      uses: actions/upload-artifact@v3
+      with:
+        name: test-reports
+        path: |
+          testing/reports/
+          backend/coverage/

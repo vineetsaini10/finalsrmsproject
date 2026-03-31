@@ -128,6 +128,7 @@ export const trainingAPI = {
   module: (id) => api.get(`/training/modules/${id}`),
   completeModule: (id) => api.post(`/training/modules/${id}/complete`),
   submitQuiz: (data) => api.post('/training/quiz/submit', data),
+  completeTask: (moduleId) => api.post(`/training/tasks/${moduleId}/complete`),
 }
 
 export const gamificationAPI = {
@@ -141,6 +142,13 @@ export const workersAPI = {
   createDemo: () => api.post('/workers/demo'),
   updateStatus: (id, status, lat, lng) =>
     api.put(`/workers/${id}/status`, { status, lat, lng }),
+}
+
+export const workforceAPI = {
+  list: (params) => api.get('/workforce', { params }),
+  add: (data) => api.post('/workforce', data),
+  assign: (complaintId) => api.patch('/workforce/assign', { complaint_id: complaintId }),
+  updateLocation: (id, lat, lng) => api.patch(`/workforce/${id}/location`, { lat, lng }),
 }
 
 // ── Reports ──────────────────────────────────────────────────────────────────

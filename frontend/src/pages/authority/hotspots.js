@@ -9,11 +9,18 @@ import { EmptyState, SectionCard, StatCard } from '../../components/ui'
 
 const HotspotMap = dynamic(() => import('../../components/authority/HotspotMap'), { ssr: false })
 
-const severityBand = (score) => (score >= 2.5 ? 'high' : score >= 1.5 ? 'medium' : 'low')
+const severityBand = (score) => (score >= 2.5 ? 'critical' : score >= 2.0 ? 'high' : score >= 1.2 ? 'medium' : 'low')
 const severityConfig = {
-  high: { text: 'text-red-700', dot: 'bg-red-500', bar: 'bg-red-500', chip: 'bg-red-50 border-red-100' },
+  critical: { text: 'text-red-700 font-bold animate-pulse', dot: 'bg-red-600', bar: 'bg-red-600', chip: 'bg-red-100 border-red-300' },
+  high: { text: 'text-orange-700', dot: 'bg-orange-500', bar: 'bg-orange-500', chip: 'bg-orange-50 border-orange-200' },
   medium: { text: 'text-amber-700', dot: 'bg-amber-400', bar: 'bg-amber-400', chip: 'bg-amber-50 border-amber-100' },
   low: { text: 'text-slate-600', dot: 'bg-slate-400', bar: 'bg-slate-400', chip: 'bg-slate-50 border-slate-100' },
+}
+
+const trendIcon = (trend) => {
+  if (trend === 'increasing') return <span className="text-red-500 font-bold">↑</span>;
+  if (trend === 'decreasing') return <span className="text-green-500 font-bold">↓</span>;
+  return <span className="text-slate-400">→</span>;
 }
 
 export default function HotspotsPage() {
@@ -53,6 +60,7 @@ export default function HotspotsPage() {
 
   const hotspots = data?.hotspots || []
   const stats = useMemo(() => {
+    const critical = hotspots.filter((hotspot) => severityBand(Number(hotspot.severity_score || 0)) === 'critical').length
     const high = hotspots.filter((hotspot) => severityBand(Number(hotspot.severity_score || 0)) === 'high').length
     const medium = hotspots.filter((hotspot) => severityBand(Number(hotspot.severity_score || 0)) === 'medium').length
     const totalComplaints = hotspots.reduce((sum, hotspot) => sum + Number(hotspot.complaint_count || 0), 0)
@@ -62,6 +70,7 @@ export default function HotspotsPage() {
 
     return {
       total: hotspots.length,
+      critical,
       high,
       medium,
       totalComplaints,
@@ -101,10 +110,10 @@ export default function HotspotsPage() {
         </div>
 
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          <StatCard label="Total Hotspots" value={stats.total} color="red" loading={isLoading} />
-          <StatCard label="High Severity" value={stats.high} color="red" loading={isLoading} />
-          <StatCard label="Medium Severity" value={stats.medium} color="amber" loading={isLoading} />
-          <StatCard label="Avg Severity" value={stats.avgSeverity} color="blue" loading={isLoading} />
+          <StatCard label="Total Hotspots" value={stats.total} color="slate" loading={isLoading} />
+          <StatCard label="Critical"       value={stats.critical} color="red" loading={isLoading} />
+          <StatCard label="High/Med"       value={stats.high + stats.medium} color="orange" loading={isLoading} />
+          <StatCard label="Avg Severity"   value={stats.avgSeverity} color="blue" loading={isLoading} />
         </div>
 
         <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
@@ -148,7 +157,7 @@ export default function HotspotsPage() {
                 </div>
               </div>
               <div className="space-y-3">
-                {['high', 'medium', 'low'].map((level) => {
+                {['critical', 'high', 'medium', 'low'].map((level) => {
                   const count = hotspots.filter((hotspot) => severityBand(Number(hotspot.severity_score || 0)) === level).length
                   const pct = hotspots.length ? Math.round((count / hotspots.length) * 100) : 0
                   const config = severityConfig[level]
@@ -192,10 +201,11 @@ export default function HotspotsPage() {
                   <tr>
                     <th>#</th>
                     <th>Location</th>
-                    <th>Ward</th>
+                    <th>Trend</th>
                     <th>Severity</th>
-                    <th>Complaints</th>
-                    <th>Dominant Issue</th>
+                    <th>Complaints (Next 7d)</th>
+                    <th>Peak Time</th>
+                    <th>AI Recommendation</th>
                     <th>Score</th>
                     <th>Map</th>
                   </tr>
@@ -211,27 +221,37 @@ export default function HotspotsPage() {
 
                     return (
                       <tr key={hotspot.id || index}>
-                        <td className="text-slate-400 font-mono text-xs">#{index + 1}</td>
-                        <td className="font-mono text-xs text-slate-600">
-                          {Number.isFinite(lat) ? lat.toFixed(5) : '-'}, {Number.isFinite(lng) ? lng.toFixed(5) : '-'}
+                        <td className="text-slate-400 font-mono text-[10px]">
+                          {Number.isFinite(lat) ? lat.toFixed(4) : '-'}, {Number.isFinite(lng) ? lng.toFixed(4) : '-'}
                         </td>
-                        <td className="text-sm text-slate-700">{hotspot.ward_name || '-'}</td>
                         <td>
-                          <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-semibold capitalize ${config.text} ${config.chip}`}>
-                            <span className={`w-2 h-2 rounded-full ${config.dot}`} />
+                          <div className="flex items-center gap-1">
+                            {trendIcon(hotspot.trend)}
+                            <span className="text-[10px] uppercase font-bold text-slate-400">{hotspot.trend}</span>
+                          </div>
+                        </td>
+                        <td>
+                          <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-bold capitalize ${config.text} ${config.chip}`}>
+                            <span className={`w-1.5 h-1.5 rounded-full ${config.dot}`} />
                             {level}
                           </span>
                         </td>
-                        <td className="text-sm font-semibold text-slate-700">{complaintCount}</td>
-                        <td className="text-sm text-slate-700 capitalize">
-                          {String(hotspot.dominant_type || 'other').replace(/_/g, ' ')}
+                        <td>
+                           <div className="flex flex-col">
+                             <span className="text-sm font-bold text-slate-800">{complaintCount} current</span>
+                             <span className="text-[10px] text-blue-500 font-medium">~{hotspot.predicted_count || 0} predicted</span>
+                           </div>
+                        </td>
+                        <td className="text-[11px] text-slate-600 font-medium">{hotspot.peak_time || 'General'}</td>
+                        <td>
+                          <div className="max-w-[200px] text-[11px] leading-tight text-slate-600 bg-slate-50 border border-slate-100 p-1.5 rounded">
+                            <span className="text-indigo-600 font-bold block mb-0.5">🤖 AI Recommend:</span>
+                            {hotspot.recommended_action}
+                          </div>
                         </td>
                         <td>
                           <div className="flex items-center gap-2">
-                            <div className="w-20 h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                              <div className={`h-full rounded-full ${config.bar}`} style={{ width: `${Math.min(100, (score / 3) * 100)}%` }} />
-                            </div>
-                            <span className={`text-sm font-bold ${config.text}`}>{score.toFixed(2)}</span>
+                             <span className={`text-sm font-bold ${config.text}`}>{score.toFixed(2)}</span>
                           </div>
                         </td>
                         <td>

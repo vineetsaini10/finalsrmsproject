@@ -13,7 +13,7 @@ function resolveWardScope(req, requestedWardId) {
 
   if (req.user.role === 'authority') {
     const ownWardId = req.user.wardId ? String(req.user.wardId) : null;
-    if (!ownWardId) return { error: { status: 400, message: 'Authority user is not assigned to a ward' } };
+    if (!ownWardId) return { wardId: undefined }; // Fallback: show all complaints
     if (requestedWardId && String(requestedWardId) !== ownWardId) {
       return { error: { status: 403, message: 'Authority users can only access their assigned ward' } };
     }

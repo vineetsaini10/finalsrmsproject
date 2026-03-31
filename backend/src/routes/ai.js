@@ -5,6 +5,9 @@ const Complaint = require('../models/Complaint');
 const mongoose = require('mongoose');
 const { authenticate, authorize } = require('../middleware/auth');
 const aiService = require('../services/aiService');
+const { createNotification } = require('../services/notificationService');
+const { findBestWorker } = require('../services/workforceService');
+const User = require('../models/User');
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } });
 const ALLOWED_IMAGE_MIME = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/jpg', 'image/bmp']);
@@ -39,16 +42,40 @@ function normalizeHotspotDoc(h) {
     centroid_lng: lng,
     complaint_count: Number(h.complaintCount || 0),
     severity_score: Number(h.severityScore || 0),
+    level: h.level || 'low',
+    trend: h.trend || 'stable',
     dominant_type: h.dominantType || 'other',
+    peak_time: h.peakTime || 'Unknown',
+    predicted_count: Number(h.predictedCount || 0),
+    recommended_action: h.recommendedAction || 'Monitor area',
     period_days: Number(h.periodDays || 7),
     createdAt: h.createdAt,
   };
 }
 
 function computeSeverityScore(count, avgPriority) {
-  // Keep score in a stable 0..3 range for frontend severity bands.
   const raw = (count / 4) + (avgPriority * 0.55);
   return Math.max(0.5, Math.min(3, Number(raw.toFixed(2))));
+}
+
+function getLevel(score) {
+  if (score >= 2.5) return 'critical';
+  if (score >= 2.0) return 'high';
+  if (score >= 1.2) return 'medium';
+  return 'low';
+}
+
+function analyzePeakTime(points) {
+  const hours = points.map(p => new Date(p.createdAt).getHours());
+  if (!hours.length) return 'Unknown';
+  const counts = {};
+  hours.forEach(h => counts[h] = (counts[h] || 0) + 1);
+  const peakIdx = Object.entries(counts).sort((a,b) => b[1] - a[1])[0][0];
+  const h = parseInt(peakIdx);
+  if (h >= 5 && h < 12) return 'Morning (5AM - 12PM)';
+  if (h >= 12 && h < 17) return 'Afternoon (12PM - 5PM)';
+  if (h >= 17 && h < 22) return 'Evening (5PM - 10PM)';
+  return 'Night (10PM - 5AM)';
 }
 
 function dominantIssueType(points = []) {
@@ -79,7 +106,7 @@ function resolveWardScope(req, requestedWardId) {
 
   if (role === 'authority') {
     if (!ownWardId) {
-      return { error: { status: 400, message: 'Authority user is not assigned to a ward' } };
+      return { wardId: undefined }; // Fallback: show all if not assigned
     }
     if (requestedWardId && String(requestedWardId) !== ownWardId) {
       return { error: { status: 403, message: 'Authority users can only access their assigned ward' } };
@@ -134,28 +161,82 @@ async function generateHotspotsFromComplaints({ wardId, days, persist = true }) 
   const detection = await aiService.detectHotspots(coordinates);
   const clusters = Array.isArray(detection?.clusters) ? detection.clusters : [];
 
-  const docs = clusters.map(cluster => {
-    const points = Array.isArray(cluster.points) ? cluster.points : [];
-    const count = Number(cluster.count || points.length || 0);
-    const avgPriority = points.length
-      ? points.reduce((s, p) => s + Number(p.priority || 1), 0) / points.length
-      : 1;
-    const clusterWardId = wardId || dominantWardId(points);
+  // Fetch previous hotspots for trend detection
+  const prevHotspots = await Hotspot.find({ wardId, periodDays: days }).lean();
 
-    return {
+  const docs = await Promise.all(clusters.map(async (cluster) => {
+    const points = Array.isArray(cluster.points) ? cluster.points : [];
+    // The points from aiService might not have createdAt, so we map them back to complaints if needed
+    // But for now we'll use the original complaints that formed this cluster
+    const clusterCentroid = [Number(cluster.center?.long || 0), Number(cluster.center?.lat || 0)];
+    
+    // Find complaints belonging to this cluster (rough approximation for temporal analysis)
+    const clusterComplaints = complaints.filter(c => {
+      const dist = Math.sqrt(Math.pow(c.location.coordinates[0] - clusterCentroid[0], 2) + Math.pow(c.location.coordinates[1] - clusterCentroid[1], 2));
+      return dist < 0.005; // ~500m radius
+    });
+
+    const count = Number(cluster.count || clusterComplaints.length || 0);
+    const avgPriority = clusterComplaints.length
+      ? clusterComplaints.reduce((s, p) => s + Number(p.priority || 1), 0) / clusterComplaints.length
+      : 1;
+    const clusterWardId = wardId || dominantWardId(clusterComplaints);
+    const score = computeSeverityScore(count, avgPriority);
+    const level = getLevel(score);
+
+    // Trend Detection
+    let trend = 'stable';
+    const nearestPrev = prevHotspots.find(h => {
+      const d = Math.sqrt(Math.pow(h.centroid.coordinates[0] - clusterCentroid[0], 2) + Math.pow(h.centroid.coordinates[1] - clusterCentroid[1], 2));
+      return d < 0.002; // Close match
+    });
+    if (nearestPrev) {
+      if (count > nearestPrev.complaintCount * 1.2) trend = 'increasing';
+      else if (count < nearestPrev.complaintCount * 0.8) trend = 'decreasing';
+    } else if (count >= 3) {
+      trend = 'increasing'; // New emerging hotspot
+    }
+
+    // Workforce Recommendation
+    let recommendedAction = 'Monitor area';
+    if (level === 'critical' || level === 'high') {
+      const bestWorker = await findBestWorker({ location: { type: 'Point', coordinates: clusterCentroid }, wardId: clusterWardId });
+      if (bestWorker) recommendedAction = `Deploy ${bestWorker.name} (${bestWorker.role}) immediately`;
+      else recommendedAction = 'Urgent: Dispatch emergency cleaning crew';
+    }
+
+    const doc = {
       wardId: clusterWardId || undefined,
-      centroid: {
-        type: 'Point',
-        coordinates: [Number(cluster.center?.long || 0), Number(cluster.center?.lat || 0)],
-      },
+      centroid: { type: 'Point', coordinates: clusterCentroid },
       complaintCount: count,
-      severityScore: computeSeverityScore(count, avgPriority),
-      dominantType: dominantIssueType(points),
+      severityScore: score,
+      level,
+      trend,
+      dominantType: dominantIssueType(clusterComplaints),
+      peakTime: analyzePeakTime(clusterComplaints),
+      predictedCount: Math.round(count * (trend === 'increasing' ? 1.3 : trend === 'decreasing' ? 0.7 : 1.0)),
+      recommendedAction,
       periodDays: days,
     };
-  }).filter(d => Number.isFinite(d.centroid.coordinates[0]) && Number.isFinite(d.centroid.coordinates[1]));
 
-  if (!docs.length) {
+    // Automated Alerting
+    if (level === 'critical' && persist) {
+      const authorities = await User.find({
+        role: { $in: ['authority', 'admin'] },
+        $or: [{ wardId: clusterWardId }, { wardId: { $exists: false } }],
+      }).select('_id').lean();
+      
+      await Promise.all(authorities.map(a => 
+        createNotification(a._id, '🚨 Critical Hotspot Detected', `Waste accumulation hotspot identified at ${clusterCentroid[1].toFixed(4)}, ${clusterCentroid[0].toFixed(4)}. Action: ${recommendedAction}`, 'complaint_update', { centroid: clusterCentroid })
+      ));
+    }
+
+    return doc;
+  }));
+
+  const filteredDocs = docs.filter(d => Number.isFinite(d.centroid.coordinates[0]) && Number.isFinite(d.centroid.coordinates[1]));
+
+  if (!filteredDocs.length) {
     if (persist) {
       await Hotspot.deleteMany(buildHotspotDeleteFilter(wardId, days));
     }
@@ -164,10 +245,10 @@ async function generateHotspotsFromComplaints({ wardId, days, persist = true }) 
 
   if (persist) {
     await Hotspot.deleteMany(buildHotspotDeleteFilter(wardId, days));
-    await Hotspot.insertMany(docs);
+    await Hotspot.insertMany(filteredDocs);
   }
 
-  return docs;
+  return filteredDocs;
 }
 
 function extractUploadedFile(req) {

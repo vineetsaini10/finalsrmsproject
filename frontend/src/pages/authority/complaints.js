@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
-import { complaintsAPI, workersAPI } from '../../utils/api'
+import { complaintsAPI, workersAPI, workforceAPI } from '../../utils/api'
 import useAuthStore from '../../context/authStore'
 import AuthorityLayout from '../../components/authority/AuthorityLayout'
 import { Badge, PriorityBadge, Tabs, SearchInput, SectionCard, Modal, StatCard } from '../../components/ui'
@@ -32,6 +32,7 @@ export default function AuthorityComplaints() {
     }),
     select: d => d.data,
     keepPreviousData: true,
+    refetchInterval: 30000, // Real-time sync every 30s
     enabled: Boolean(user?.role && ['authority', 'admin'].includes(user.role)),
   })
 
@@ -68,6 +69,16 @@ export default function AuthorityComplaints() {
   const statusMut = useMutation({
     mutationFn: ({ id, status }) => complaintsAPI.updateStatus(id, status),
     onSuccess: () => { toast.success('Status updated'); qc.invalidateQueries(['auth-complaints']) },
+  })
+  
+  const smartAssignMut = useMutation({
+    mutationFn: (id) => workforceAPI.assign(id),
+    onSuccess: (resp) => {
+      toast.success(`Smart-assigned to ${resp.worker?.name || 'nearest worker'}`)
+      qc.invalidateQueries(['auth-complaints'])
+      qc.invalidateQueries(['all-workers-v2'])
+    },
+    onError: (err) => toast.error(err?.response?.data?.message || 'Smart assignment failed'),
   })
 
   const complaints = data?.data || []
@@ -149,12 +160,21 @@ export default function AuthorityComplaints() {
                       </td>
                       <td><Badge status={c.status} /></td>
                       <td>
-                        <div className="flex items-center gap-1">
+                        <div className="flex flex-col sm:flex-row items-center gap-1">
+                          {c.status === 'pending' && (
+                            <button onClick={() => smartAssignMut.mutate(c._id)}
+                              disabled={smartAssignMut.isPending}
+                              className="btn-primary btn-sm text-[10px] px-2 py-1">
+                              {smartAssignMut.isPending ? '...' : '🤖 Smart Assign'}
+                            </button>
+                          )}
                           <button onClick={() => setAssignModal(c)}
-                            className="btn-blue btn-sm text-xs">Assign</button>
+                            className="bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-100 px-2 py-1 rounded text-[10px] font-medium transition-colors">
+                            Manual
+                          </button>
                           {c.status !== 'resolved' && (
                             <button onClick={() => statusMut.mutate({ id: c._id, status: 'resolved' })}
-                              className="btn-secondary btn-sm text-xs">Resolve</button>
+                              className="btn-secondary btn-sm text-[10px] px-2 py-1">Resolve</button>
                           )}
                         </div>
                       </td>

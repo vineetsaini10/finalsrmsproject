@@ -1,0 +1,41 @@
+version: '3.8'
+
+services:
+  mongodb_test:
+    image: mongo:latest
+    ports:
+      - "27018:27017" # Different port to avoid conflict with dev
+
+  redis_test:
+    image: redis:alpine
+    ports:
+      - "6380:6379"
+
+  aiml_test:
+    build:
+      context: ./aiml
+    environment:
+      - MONGODB_URI=mongodb://mongodb_test:27017/swachhanet-test
+      - REDIS_URL=redis://redis_test:6379
+    depends_on:
+      - mongodb_test
+      - redis_test
+
+  backend_test:
+    build:
+      context: ./backend
+    environment:
+      - NODE_ENV=test
+      - MONGODB_URI=mongodb://mongodb_test:27017/swachhanet-test
+      - AIML_SERVICE_URL=http://aiml_test:8000
+    depends_on:
+      - mongodb_test
+      - aiml_test
+
+  tester:
+    build:
+      context: .
+      dockerfile: Dockerfile.test
+    depends_on:
+      - backend_test
+      - aiml_test

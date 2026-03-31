@@ -1,20 +1,30 @@
-const router  = require('express').Router();
-const bcrypt  = require('bcryptjs');
-const jwt     = require('jsonwebtoken');
+const router = require('express').Router();
+const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
+const env = require('../config/env');
+
 const { body, validationResult } = require('express-validator');
 
-const User          = require('../models/User');
-const Gamification  = require('../models/Gamification');
+const User = require('../models/User');
+const Gamification = require('../models/Gamification');
 const { RefreshToken } = require('../models/Notification');
 const { authenticate } = require('../middleware/auth');
-const logger        = require('../utils/logger');
+const logger = require('../utils/logger');
 const { ok, fail } = require('../utils/response');
 
+
+
 const generateTokens = (userId, role) => ({
-  accessToken: jwt.sign({ userId, role }, process.env.JWT_SECRET,
-    { expiresIn: process.env.JWT_EXPIRES_IN || '15m' }),
-  refreshToken: jwt.sign({ userId }, process.env.JWT_REFRESH_SECRET,
-    { expiresIn: process.env.JWT_REFRESH_EXPIRES_IN || '7d' }),
+  accessToken: jwt.sign(
+    { userId, role },
+    env.JWT_SECRET || "fallback_secret_123",
+    { expiresIn: env.JWT_EXPIRES_IN || '15m' }
+  ),
+  refreshToken: jwt.sign(
+    { userId },
+    env.JWT_REFRESH_SECRET || "fallback_refresh_123",
+    { expiresIn: env.JWT_REFRESH_EXPIRES_IN || '7d' }
+  ),
 });
 
 function normalizePhone(phone) {
@@ -132,7 +142,7 @@ router.post('/otp/verify', async (req, res, next) => {
     user.otpSecret = undefined;
     await user.save();
     const tokens = generateTokens(user._id, user.role);
-    await RefreshToken.create({ userId: user._id, token: tokens.refreshToken, expiresAt: new Date(Date.now() + 7*24*60*60*1000) });
+    await RefreshToken.create({ userId: user._id, token: tokens.refreshToken, expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) });
     return ok(res, tokens, 'Phone verified successfully');
   } catch (err) { next(err); }
 });
@@ -147,10 +157,12 @@ router.post('/login', [body('phone').notEmpty(), body('password').notEmpty()], a
     if (!valid) return fail(res, 401, 'Invalid credentials');
     if (!user.isVerified) return fail(res, 403, 'Phone not verified', { code: 'UNVERIFIED' });
     const tokens = generateTokens(user._id, user.role);
-    await RefreshToken.create({ userId: user._id, token: tokens.refreshToken, expiresAt: new Date(Date.now() + 7*24*60*60*1000) });
+    await RefreshToken.create({ userId: user._id, token: tokens.refreshToken, expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) });
     const payload = {
-      user: { id: user._id, name: user.name, phone: user.phone, email: user.email, role: user.role,
-              wardId: user.wardId?._id, wardName: user.wardId?.name, city: user.wardId?.city },
+      user: {
+        id: user._id, name: user.name, phone: user.phone, email: user.email, role: user.role,
+        wardId: user.wardId?._id, wardName: user.wardId?.name, city: user.wardId?.city
+      },
       ...tokens,
     };
     return ok(res, payload, 'Login successful');
@@ -169,7 +181,7 @@ router.post('/refresh', async (req, res, next) => {
     if (!user) return fail(res, 401, 'User not found');
     const tokens = generateTokens(user._id, user.role);
     await RefreshToken.deleteOne({ token: refreshToken });
-    await RefreshToken.create({ userId: user._id, token: tokens.refreshToken, expiresAt: new Date(Date.now() + 7*24*60*60*1000) });
+    await RefreshToken.create({ userId: user._id, token: tokens.refreshToken, expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) });
     return ok(res, tokens, 'Token refreshed');
   } catch (err) {
     if (err.name === 'JsonWebTokenError') return fail(res, 401, 'Invalid token');

@@ -29,7 +29,7 @@ export default function AuthorityLayout({ children, urgentCount = 0 }) {
   }
 
   const Sidebar = () => (
-    <aside className="flex flex-col h-full w-[260px] bg-slate-900">
+    <aside className="flex flex-col h-full w-[260px] bg-slate-900 relative z-50">
       {/* Brand */}
       <div className="px-5 py-5 border-b border-slate-700/60">
         <div className="flex items-center gap-3">
@@ -100,7 +100,7 @@ export default function AuthorityLayout({ children, urgentCount = 0 }) {
   return (
     <div className="flex h-screen overflow-hidden bg-slate-50">
       {/* Desktop sidebar */}
-      <div className="hidden lg:flex flex-shrink-0">
+      <div className="hidden lg:flex flex-shrink-0 relative z-[60]">
         <Sidebar />
       </div>
 
@@ -115,7 +115,7 @@ export default function AuthorityLayout({ children, urgentCount = 0 }) {
       {/* Main */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         {/* Header */}
-        <header className="h-16 bg-white border-b border-slate-100 flex items-center justify-between px-4 lg:px-6 flex-shrink-0">
+        <header className="h-16 bg-white border-b border-slate-100 flex items-center justify-between px-4 lg:px-6 flex-shrink-0 relative z-40 shadow-sm">
           <div className="flex items-center gap-3">
             <button onClick={() => setSidebarOpen(true)} className="lg:hidden btn-ghost btn-sm p-2">☰</button>
             <div>

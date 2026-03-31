@@ -40,7 +40,10 @@ function resolveWardScope(req, requestedWardId) {
 
   if (req.user.role === 'authority') {
     const ownWardId = req.user.wardId ? String(req.user.wardId) : null;
-    if (!ownWardId) return { error: { status: 400, message: 'Authority user is not assigned to a ward' } };
+    if (!ownWardId) {
+      logger.warn(`Authority user [${req.user._id}] is not assigned to any ward. Showing all complaints.`);
+      return { wardId: undefined }; // Fallback: show all complaints
+    }
     if (requestedWardId && String(requestedWardId) !== ownWardId) {
       return { error: { status: 403, message: 'Authority users can only access their assigned ward' } };
     }
@@ -57,7 +60,7 @@ function resolveWardScope(req, requestedWardId) {
 async function uploadToStorage(buffer, mimetype) {
   if (imagekit) {
     const filename = `${uuidv4()}.jpg`;
-    const uploadRes = await imagekit.upload({
+    const uploadRes = await imagekit.files.upload({
       file: buffer.toString('base64'),
       fileName: filename,
       folder: process.env.IMAGEKIT_FOLDER || '/swachhanet/complaints',
@@ -97,9 +100,24 @@ router.post('/', authenticate, upload.single('image'), async (req, res, next) =>
     const address  = await reverseGeocode(lat, lng);
     const priority = PRIORITY_MAP[issue_type] || 1;
 
+    let wardId = req.user.wardId;
+
+    // Auto-detect ward from coordinates if not in user profile
+    if (!wardId) {
+      const ward = await Ward.findOne({
+        boundary: {
+          $geoIntersects: {
+            $geometry: { type: 'Point', coordinates: [parseFloat(lng), parseFloat(lat)] }
+          }
+        }
+      }).select('_id').lean();
+      if (ward) wardId = ward._id;
+      else logger.warn(`Complaint [${issue_type}] at ${lat},${lng} is NOT within any recognized ward boundary.`);
+    }
+
     const complaint = await Complaint.create({
       userId:    req.user._id,
-      wardId:    req.user.wardId,
+      wardId,
       issueType: issue_type,
       priority,
       imageUrl,

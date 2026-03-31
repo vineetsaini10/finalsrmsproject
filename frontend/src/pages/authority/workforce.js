@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
-import { workersAPI } from '../../utils/api'
+import { workersAPI, workforceAPI } from '../../utils/api'
 import useAuthStore from '../../context/authStore'
 import AuthorityLayout from '../../components/authority/AuthorityLayout'
 import { StatCard, SectionCard, EmptyState } from '../../components/ui'
@@ -17,10 +17,10 @@ export default function WorkforcePage() {
   const qc       = useQueryClient()
 
   const { data, isLoading } = useQuery({
-    queryKey: ['all-workers', user?.wardId],
-    queryFn:  () => workersAPI.list({ ward_id: user?.wardId }),
+    queryKey: ['all-workers-v2', user?.wardId],
+    queryFn:  () => workforceAPI.list({ ward_id: user?.wardId }),
     select: d => d.data,
-    refetchInterval: 30_000,
+    refetchInterval: 15_000, // Faster refresh for real-time tracking
   })
 
   const statusMut = useMutation({
@@ -46,9 +46,9 @@ export default function WorkforcePage() {
         {/* KPIs */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           <StatCard label="Total Workers"  value={workers.length} icon="👷" color="slate" loading={isLoading} />
+          <StatCard label="Utilization"    value={`${Math.round((busy / (workers.length || 1)) * 100)}%`} icon="📈" color="purple" loading={isLoading} />
           <StatCard label="Available"      value={available}      icon="✅" color="green" loading={isLoading} />
           <StatCard label="On Task"        value={busy}           icon="🔄" color="blue"  loading={isLoading} />
-          <StatCard label="Offline/Break"  value={offline}        icon="⏸" color="amber" loading={isLoading} />
         </div>
 
         {/* Workers table */}
@@ -63,11 +63,10 @@ export default function WorkforcePage() {
                 <thead>
                   <tr>
                     <th>Worker</th>
-                    <th>Employee ID</th>
+                    <th>Role</th>
                     <th>Zone</th>
-                    <th>Ward</th>
-                    <th>Phone</th>
-                    <th>Tasks Done</th>
+                    <th>Tasks (Active)</th>
+                    <th>Performance</th>
                     <th>Status</th>
                     <th>Update Status</th>
                   </tr>
@@ -79,18 +78,34 @@ export default function WorkforcePage() {
                       <tr key={w._id}>
                         <td>
                           <div className="flex items-center gap-3">
-                            <div className="w-9 h-9 rounded-full bg-slate-100 text-slate-600 flex items-center justify-center font-semibold text-sm flex-shrink-0">
+                            <div className="w-9 h-9 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center font-semibold text-sm flex-shrink-0">
                               {w.name[0]}
                             </div>
-                            <span className="font-medium text-slate-800">{w.name}</span>
+                            <div>
+                              <div className="font-medium text-slate-800">{w.name}</div>
+                              <div className="text-[10px] font-mono text-slate-400 uppercase tracking-tighter">{w.employeeId}</div>
+                            </div>
                           </div>
                         </td>
-                        <td className="text-slate-500 text-sm font-mono">{w.employeeId || '—'}</td>
-                        <td className="text-slate-700">{w.zone || '—'}</td>
-                        <td className="text-slate-500 text-sm">{w.wardId?.name || '—'}</td>
-                        <td className="text-slate-600 text-sm">{w.phone || '—'}</td>
                         <td>
-                          <span className="font-semibold text-slate-800">{w.tasksCompleted || 0}</span>
+                          <span className="capitalize text-xs font-semibold px-2 py-0.5 bg-slate-100 rounded text-slate-600 border border-slate-200">
+                             {w.role || 'cleaner'}
+                          </span>
+                        </td>
+                        <td className="text-slate-700 text-sm">{w.zone || '—'}</td>
+                        <td className="text-slate-600">
+                           <div className="flex flex-col">
+                             <span className="text-sm font-bold text-slate-800">{w.tasksCompleted || 0} total</span>
+                             {w.assignedTasks?.length > 0 && (
+                               <span className="text-[10px] text-blue-600 font-medium">● {w.assignedTasks.length} active</span>
+                             )}
+                           </div>
+                        </td>
+                        <td>
+                           <div className="flex items-center gap-1">
+                             <span className="text-amber-500 text-xs">⭐</span>
+                             <span className="text-sm font-bold text-slate-700">{w.performanceScore || 0}</span>
+                           </div>
                         </td>
                         <td>
                           <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold ${sc.bg} ${sc.text} border ${sc.border}`}>

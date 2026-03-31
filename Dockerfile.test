@@ -1,0 +1,28 @@
+FROM python:3.10-slim
+
+WORKDIR /app
+
+# Install Node.js for backend tests
+RUN apt-get update && apt-get install -y \
+    curl \
+    gnupg \
+    && curl -fsSL https://deb.nodesource.com/setup_18.x | bash - \
+    && apt-get install -y nodejs \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy everything
+COPY . .
+
+# Install dependencies for AIML/Testing
+RUN pip install --no-cache-dir requests numpy scikit-learn matplotlib seaborn pytest coverage
+
+# Install dependencies for Backend
+WORKDIR /app/backend
+RUN npm install
+
+# Create log directory
+WORKDIR /app
+RUN mkdir -p logs
+
+# Set command to run all tests
+CMD ["./scripts/run_automated_pipeline.sh"]

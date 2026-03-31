@@ -38,7 +38,7 @@ export default function CitizenLayout({ children }) {
   }
 
   const Sidebar = () => (
-    <aside className="flex flex-col h-full bg-gradient-to-b from-green-800 to-green-900 w-[260px]">
+    <aside className="flex flex-col h-full bg-gradient-to-b from-green-800 to-green-900 w-[260px] relative z-50 shadow-xl">
       {/* Brand */}
       <div className="px-5 py-5 border-b border-green-700/50">
         <div className="flex items-center gap-3">
@@ -108,7 +108,7 @@ export default function CitizenLayout({ children }) {
   return (
     <div className="flex h-screen overflow-hidden bg-slate-50">
       {/* Desktop sidebar */}
-      <div className="hidden lg:flex flex-shrink-0">
+      <div className="hidden lg:flex flex-shrink-0 relative z-[60]">
         <Sidebar />
       </div>
 
@@ -125,7 +125,7 @@ export default function CitizenLayout({ children }) {
       {/* Main content */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         {/* Top header (mobile + desktop) */}
-        <header className="h-16 bg-white border-b border-slate-100 flex items-center justify-between px-4 lg:px-6 flex-shrink-0">
+        <header className="h-16 bg-white border-b border-slate-100 flex items-center justify-between px-4 lg:px-6 flex-shrink-0 relative z-40 shadow-sm">
           <div className="flex items-center gap-3">
             <button onClick={() => setSidebarOpen(true)} className="lg:hidden btn-ghost btn-sm p-2 rounded-lg">
               ☰

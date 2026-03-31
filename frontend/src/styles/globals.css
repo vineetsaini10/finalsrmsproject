@@ -3,6 +3,7 @@
 @tailwind utilities;
 
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+@import 'leaflet/dist/leaflet.css';
 
 :root {
   --sidebar-width: 260px;
@@ -27,9 +28,21 @@ body {
 ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
 
-/* Mapbox */
-.mapboxgl-ctrl-logo { display: none !important; }
-.mapboxgl-ctrl-attrib { display: none !important; }
+/* Leaflet fixes */
+.leaflet-container { 
+  z-index: 0 !important; 
+  @apply rounded-xl font-sans overflow-hidden border border-slate-100 shadow-sm;
+}
+.leaflet-control-container .leaflet-top,
+.leaflet-control-container .leaflet-bottom {
+  z-index: 40 !important;
+}
+.leaflet-pane {
+  z-index: 0 !important;
+}
+.leaflet-top, .leaflet-bottom {
+  z-index: 40 !important;
+}
 
 @layer components {
   /* Buttons */

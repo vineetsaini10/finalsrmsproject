@@ -1,4 +1,5 @@
 require('dotenv').config();
+const env          = require('./config/env');
 const express      = require('express');
 const path         = require('path');
 const cors         = require('cors');
@@ -22,6 +23,7 @@ const workerRoutes       = require('./routes/workers');
 const reportRoutes       = require('./routes/reports');
 const notificationRoutes = require('./routes/notifications');
 const wardRoutes         = require('./routes/wards');
+const workforceRoutes    = require('./routes/workforce');
 
 const app  = express();
 const PORT = process.env.PORT || 5000;
@@ -77,6 +79,7 @@ app.use(`${API}/workers`,       workerRoutes);
 app.use(`${API}/reports`,       reportRoutes);
 app.use(`${API}/notifications`, notificationRoutes);
 app.use(`${API}/wards`,         wardRoutes);
+app.use(`${API}/workforce`,     workforceRoutes);
 
 app.use('*', (req, res) => res.status(404).json({
   success: false,
@@ -99,5 +102,8 @@ async function startServer() {
   }
 }
 
-startServer();
+if (env.NODE_ENV !== 'test') {
+  startServer();
+}
+
 module.exports = app;
