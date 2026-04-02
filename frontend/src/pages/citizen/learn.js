@@ -314,7 +314,7 @@ export default function LearnPage() {
                      <Target className="w-8 h-8" />
                   </div>
                   <h4 className="text-2xl font-black text-slate-900">Keep it up!</h4>
-                  <p className="text-slate-500 font-bold mb-6">Complete more modules to unlock the "Green Warrior" badge.</p>
+                  <p className="text-slate-500 font-bold mb-6">Complete more modules to unlock the &quot;Green Warrior&quot; badge.</p>
                   <button 
                     onClick={() => currentModule && setActiveModule(currentModule)}
                     className="px-8 py-4 bg-emerald-600 text-white rounded-[1.5rem] font-black flex items-center gap-3 mx-auto hover:bg-emerald-700 transition-all active:scale-95 shadow-xl shadow-emerald-100"

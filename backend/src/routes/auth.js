@@ -174,7 +174,7 @@ router.post('/refresh', async (req, res, next) => {
   try {
     const { refreshToken } = req.body;
     if (!refreshToken) return fail(res, 400, 'Refresh token required');
-    const decoded = jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET);
+    const decoded = jwt.verify(refreshToken, env.JWT_REFRESH_SECRET || "fallback_refresh_123");
     const stored = await RefreshToken.findOne({ token: refreshToken, expiresAt: { $gt: new Date() } });
     if (!stored) return fail(res, 401, 'Invalid refresh token');
     const user = await User.findById(decoded.userId);

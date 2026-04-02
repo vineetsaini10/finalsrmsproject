@@ -33,6 +33,13 @@ const PRIORITY_MAP = {
   missed_collection: 1, stray_animal_waste: 1, other: 1,
 };
 
+const SORT_MAP = {
+  newest: { createdAt: -1, priority: -1 },
+  oldest: { createdAt: 1, priority: 1 },
+  priority_high: { priority: -1, createdAt: -1 },
+  priority_low: { priority: 1, createdAt: -1 },
+};
+
 function resolveWardScope(req, requestedWardId) {
   if (requestedWardId && !mongoose.isValidObjectId(requestedWardId)) {
     return { error: { status: 400, message: 'Invalid ward_id' } };
@@ -58,22 +65,26 @@ function resolveWardScope(req, requestedWardId) {
 }
 
 async function uploadToStorage(buffer, mimetype) {
-  if (imagekit) {
-    const filename = `${uuidv4()}.jpg`;
-    const uploadRes = await imagekit.files.upload({
-      file: buffer.toString('base64'),
-      fileName: filename,
-      folder: process.env.IMAGEKIT_FOLDER || '/swachhanet/complaints',
-      useUniqueFileName: false,
-      tags: ['complaint-image'],
-    });
-    return uploadRes.url;
-  }
-
   const uploadsDir = path.resolve(__dirname, '../../uploads/complaints');
   fs.mkdirSync(uploadsDir, { recursive: true });
   const filename = `${uuidv4()}.jpg`;
   const outPath = path.join(uploadsDir, filename);
+
+  if (imagekit) {
+    try {
+      const uploadRes = await imagekit.files.upload({
+        file: buffer.toString('base64'),
+        fileName: filename,
+        folder: process.env.IMAGEKIT_FOLDER || '/swachhanet/complaints',
+        useUniqueFileName: false,
+        tags: ['complaint-image'],
+      });
+      return uploadRes.url;
+    } catch (err) {
+      logger.warn(`ImageKit upload failed, falling back to local storage: ${err.message}`);
+    }
+  }
+
   fs.writeFileSync(outPath, buffer);
   return `/uploads/complaints/${filename}`;
 }
@@ -126,7 +137,13 @@ router.post('/', authenticate, upload.single('image'), async (req, res, next) =>
       description: description || '',
     });
 
-    if (imageUrl) await queueAIClassification({ complaintId: complaint._id.toString(), imageUrl });
+    if (imageUrl) {
+      try {
+        await queueAIClassification({ complaintId: complaint._id.toString(), imageUrl });
+      } catch (err) {
+        logger.warn(`AI queue unavailable for complaint ${complaint._id}: ${err.message}`);
+      }
+    }
     await awardPoints(req.user._id, 'complaint_submitted');
     if (priority >= 3) await notifyAuthorities(complaint);
 
@@ -138,8 +155,10 @@ router.post('/', authenticate, upload.single('image'), async (req, res, next) =>
 // GET /complaints
 router.get('/', authenticate, async (req, res, next) => {
   try {
-    const { status, issue_type, priority, start_date, end_date, page = 1, limit = 20, ward_id } = req.query;
+    const { status, issue_type, priority, start_date, end_date, page = 1, limit = 20, ward_id, sort = 'priority_high' } = req.query;
     const filter = {};
+
+    if (!SORT_MAP[sort]) return fail(res, 400, 'Invalid sort option');
 
     if (req.user.role === 'citizen') filter.userId = req.user._id;
     else {
@@ -162,7 +181,7 @@ router.get('/', authenticate, async (req, res, next) => {
       Complaint.find(filter)
         .populate('userId', 'name')
         .populate('wardId', 'name city')
-        .sort({ priority: -1, createdAt: -1 })
+        .sort(SORT_MAP[sort])
         .skip(skip).limit(Number(limit)).lean(),
       Complaint.countDocuments(filter),
     ]);

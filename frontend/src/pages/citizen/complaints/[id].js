@@ -132,7 +132,7 @@ export default function ComplaintDetailPage() {
                 <button onClick={() => upvoteMut.mutate()} disabled={upvoteMut.isPending} className="btn-secondary w-full text-sm">
                   👍 Same issue near me ({c.upvotes || 0} upvotes)
                 </button>
-                <p className="text-xs text-slate-400 text-center mt-2">Upvoting increases this complaint's priority</p>
+                <p className="text-xs text-slate-400 text-center mt-2">Upvoting increases this complaint&apos;s priority</p>
               </div>
             </SectionCard>
           )}

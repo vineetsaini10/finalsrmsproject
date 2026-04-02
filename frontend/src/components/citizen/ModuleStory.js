@@ -61,7 +61,7 @@ export default function ModuleStory({ module, onClose, onQuizSubmit, onTaskCompl
               
               <div className="bg-slate-50 border-2 border-slate-100 p-6 rounded-3xl relative">
                 <p className="text-lg text-slate-700 leading-relaxed font-medium italic">
-                  "{desc}"
+                  &ldquo;{desc}&rdquo;
                 </p>
                 <div className="absolute -bottom-3 right-8 px-4 py-1 bg-white border-2 border-slate-100 rounded-full text-[10px] font-bold text-slate-400 uppercase tracking-wider">
                   🤖 Swachha Mentor
@@ -71,7 +71,7 @@ export default function ModuleStory({ module, onClose, onQuizSubmit, onTaskCompl
               <div className="space-y-4 pt-4">
                  <h4 className="flex items-center gap-2 font-black text-slate-800 uppercase tracking-tighter text-sm">
                    <AlertCircle className="w-4 h-4 text-emerald-500" />
-                   The Do's & Don'ts
+                   The Do&apos;s & Don&apos;ts
                  </h4>
                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div className="bg-emerald-50/50 p-4 rounded-2xl border border-emerald-100">
@@ -81,7 +81,7 @@ export default function ModuleStory({ module, onClose, onQuizSubmit, onTaskCompl
                        </ul>
                     </div>
                     <div className="bg-rose-50/50 p-4 rounded-2xl border border-rose-100">
-                       <span className="text-[10px] font-black text-rose-600 uppercase">Don't</span>
+                       <span className="text-[10px] font-black text-rose-600 uppercase">Don&apos;t</span>
                        <ul className="mt-2 space-y-1.5">
                           {(module.donts || []).map((d, i) => <li key={i} className="text-xs font-bold text-rose-800 flex items-start gap-2"><span>❌</span> {d}</li>)}
                        </ul>

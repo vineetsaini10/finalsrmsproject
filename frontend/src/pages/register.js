@@ -181,7 +181,7 @@ export default function RegisterPage() {
                     toast.success('OTP resent!')
                   })}
                   className="w-full text-sm text-green-600 hover:underline text-center">
-                  Didn't receive it? Resend OTP
+                  Didn&apos;t receive it? Resend OTP
                 </button>
               </form>
             </>

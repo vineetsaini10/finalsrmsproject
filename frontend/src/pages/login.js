@@ -96,21 +96,6 @@ export default function LoginPage() {
             New to SwachhaNet?{' '}
             <Link href="/register" className="text-green-600 font-medium hover:underline">Create account</Link>
           </p>
-
-          {/* Demo credentials */}
-          <div className="mt-6 p-4 bg-blue-50 rounded-xl border border-blue-100">
-            <p className="text-xs font-semibold text-blue-700 mb-2">Demo Credentials</p>
-            <div className="space-y-1.5">
-              <div className="flex items-center justify-between text-xs">
-                <span className="text-slate-600">Citizen</span>
-                <code className="bg-white px-2 py-0.5 rounded text-slate-700 border border-slate-200">+919876543210 / citizen123</code>
-              </div>
-              <div className="flex items-center justify-between text-xs">
-                <span className="text-slate-600">Authority</span>
-                <code className="bg-white px-2 py-0.5 rounded text-slate-700 border border-slate-200">+919876543211 / authority123</code>
-              </div>
-            </div>
-          </div>
         </div>
       </div>
     </div>

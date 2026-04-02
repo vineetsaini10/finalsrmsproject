@@ -2,6 +2,39 @@ import axios from 'axios'
 import Cookies from 'js-cookie'
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1'
+let refreshPromise = null
+
+function clearAuthCookies() {
+  Cookies.remove('accessToken')
+  Cookies.remove('refreshToken')
+}
+
+async function refreshAccessToken() {
+  const refreshToken = Cookies.get('refreshToken')
+  if (!refreshToken) {
+    throw new Error('Missing refresh token')
+  }
+
+  if (!refreshPromise) {
+    refreshPromise = axios
+      .post(`${API_BASE_URL}/auth/refresh`, { refreshToken })
+      .then(({ data }) => {
+        const payload = data?.data || data
+        Cookies.set('accessToken', payload.accessToken, { expires: 1 / 96 }) // 15min
+        Cookies.set('refreshToken', payload.refreshToken, { expires: 7 })
+        return payload.accessToken
+      })
+      .catch((err) => {
+        clearAuthCookies()
+        throw err
+      })
+      .finally(() => {
+        refreshPromise = null
+      })
+  }
+
+  return refreshPromise
+}
 
 const api = axios.create({
   baseURL: API_BASE_URL,
@@ -38,18 +71,12 @@ api.interceptors.response.use(
     if (canRetryWithRefresh) {
       original._retry = true
       try {
-        const { data } = await axios.post(
-          `${API_BASE_URL}/auth/refresh`,
-          { refreshToken }
-        )
-        const payload = data?.data || data
-        Cookies.set('accessToken', payload.accessToken, { expires: 1 / 96 }) // 15min
-        Cookies.set('refreshToken', payload.refreshToken, { expires: 7 })
-        original.headers.Authorization = `Bearer ${payload.accessToken}`
+        const accessToken = await refreshAccessToken()
+        original.headers = original.headers || {}
+        original.headers.Authorization = `Bearer ${accessToken}`
         return api(original)
       } catch {
-        Cookies.remove('accessToken')
-        Cookies.remove('refreshToken')
+        clearAuthCookies()
         if (typeof window !== 'undefined' && window.location.pathname !== '/login') {
           window.location.href = '/login'
         }
@@ -58,8 +85,7 @@ api.interceptors.response.use(
 
     // If token is expired and we cannot refresh, force clean logout state.
     if (status === 401 && (code === 'TOKEN_EXPIRED' || code === 'UNAUTHORIZED' || !refreshToken)) {
-      Cookies.remove('accessToken')
-      Cookies.remove('refreshToken')
+      clearAuthCookies()
     }
     return Promise.reject(error)
   }

@@ -1,5 +1,6 @@
 const jwt  = require('jsonwebtoken');
 const User = require('../models/User');
+const env = require('../config/env');
 
 const authenticate = async (req, res, next) => {
   try {
@@ -8,7 +9,7 @@ const authenticate = async (req, res, next) => {
       return res.status(401).json({ success: false, data: null, message: 'No token provided' });
     }
     const token   = header.split(' ')[1];
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const decoded = jwt.verify(token, env.JWT_SECRET || 'fallback_secret_123');
 
     const user = await User.findById(decoded.userId)
       .select('name phone email role wardId isVerified')
@@ -37,7 +38,7 @@ const optionalAuth = async (req, res, next) => {
     const header = req.headers.authorization;
     if (header?.startsWith('Bearer ')) {
       const token   = header.split(' ')[1];
-      const decoded = jwt.verify(token, process.env.JWT_SECRET);
+      const decoded = jwt.verify(token, env.JWT_SECRET || 'fallback_secret_123');
       const user    = await User.findById(decoded.userId).select('name role wardId').lean();
       if (user) req.user = user;
     }

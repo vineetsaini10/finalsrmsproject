@@ -45,9 +45,9 @@ Everything starts automatically â€” MongoDB, Redis, Backend, AI, Frontend.
 **Backend:**
 ```bash
 cd backend
-cp .env.example .env        # edit MONGODB_URI if needed
+cp .env.example .env        
 npm install
-npm run seed                # seeds demo data into MongoDB
+npm run seed                
 npm run dev
 ```
 
@@ -63,7 +63,7 @@ npm run dev
 ```bash
 cd aiml
 python -m venv venv
-source venv/bin/activate    # Windows: venv\Scripts\activate
+source venv/bin/activate    
 pip install -r requirements.txt
 uvicorn main:app --reload --port 8000
 ```

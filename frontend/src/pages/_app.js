@@ -19,15 +19,16 @@ export default function App({ Component, pageProps }) {
   const isAuthenticated = useAuthStore(s => s.isAuthenticated)
 
   useEffect(() => {
-    if (Cookies.get('accessToken')) fetchMe()
+    if (Cookies.get('accessToken') || Cookies.get('refreshToken')) fetchMe()
   }, [])
 
   useEffect(() => {
     const path = router.pathname
     const publicPaths = ['/login', '/register']
     const isPublic = publicPaths.includes(path)
+    const hasSessionToken = Cookies.get('accessToken') || Cookies.get('refreshToken')
 
-    if (!isPublic && !isAuthenticated && !Cookies.get('accessToken')) {
+    if (!isPublic && !isAuthenticated && !hasSessionToken) {
       router.replace('/login')
       return
     }
