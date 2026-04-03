@@ -43,6 +43,7 @@ const trainingModuleSchema = new Schema({
   contentType:  { type: String, enum: ['video','infographic','quiz','article','microlearning'], default: 'microlearning' },
   contentUrl:   { type: String },
   thumbnailUrl: { type: String },
+  difficulty:   { type: String, enum: ['beginner', 'easy', 'medium', 'hard'], default: 'beginner' },
   pointsReward: { type: Number, default: 10 },
   durationMins: { type: Number, default: 3 },
   isActive:     { type: Boolean, default: true },
@@ -129,14 +130,23 @@ trainingModuleSchema.index({ category: 1, isActive: 1 });
 const quizAttemptSchema = new Schema({
   userId:         { type: Schema.Types.ObjectId, ref: 'User', required: true },
   moduleId:       { type: Schema.Types.ObjectId, ref: 'TrainingModule', required: true },
+  quizId:         { type: Schema.Types.ObjectId, ref: 'Quiz' },
   score:          { type: Number },
   totalQuestions: { type: Number },
   passed:         { type: Boolean },
   pointsEarned:   { type: Number, default: 0 },
   answers:        { type: Schema.Types.Mixed },
+  completedAt:    { type: Date, default: Date.now },
 }, { timestamps: true });
 
 quizAttemptSchema.index({ userId: 1, moduleId: 1 });
+quizAttemptSchema.index(
+  { userId: 1, quizId: 1 },
+  {
+    unique: true,
+    partialFilterExpression: { quizId: { $exists: true } },
+  }
+);
 
 const moduleProgressSchema = new Schema({
   userId:       { type: Schema.Types.ObjectId, ref: 'User', required: true },

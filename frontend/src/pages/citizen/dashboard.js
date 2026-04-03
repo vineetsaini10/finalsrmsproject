@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import Link from 'next/link'
-import { complaintsAPI, gamificationAPI, notificationsAPI, trainingAPI } from '../../utils/api'
+import { complaintsAPI, gamificationAPI, notificationsAPI } from '../../utils/api'
 import useAuthStore from '../../context/authStore'
 import CitizenLayout from '../../components/shared/CitizenLayout'
 import { StatCard, SectionCard, Badge, PriorityBadge, PageLoader } from '../../components/ui'
@@ -10,6 +10,13 @@ const ISSUE_EMOJI = {
   full_dustbin: '🗑️', illegal_dumping: '⚠️', burning_waste: '🔥',
   missed_collection: '🚛', overflowing_bin: '💧', other: '📍',
 }
+
+const QUICK_ACTIONS = [
+  { href: '/citizen/report', icon: '📸', label: 'Report Issue', color: 'bg-green-50 hover:bg-green-100 border-green-100' },
+  { href: '/citizen/learn', icon: '📚', label: 'Learn', color: 'bg-purple-50 hover:bg-purple-100 border-purple-100' },
+  { href: '/citizen/map', icon: '🗺️', label: 'Find Centers', color: 'bg-blue-50 hover:bg-blue-100 border-blue-100' },
+  { href: '/citizen/leaderboard', icon: '🏆', label: 'Leaderboard', color: 'bg-amber-50 hover:bg-amber-100 border-amber-100' },
+]
 
 export default function CitizenDashboard() {
   const { user } = useAuthStore()
@@ -32,12 +39,6 @@ export default function CitizenDashboard() {
     select: d => d.data,
   })
 
-  const { data: modulesData } = useQuery({
-    queryKey: ['dashboard-learning'],
-    queryFn: () => trainingAPI.modules(),
-    select: d => d.data,
-  })
-
   const LEVEL_NAMES = ['','Eco Beginner','Green Citizen','Eco Warrior','Waste Champion','Eco Hero','Planet Guardian']
   const LEVEL_THRESHOLDS = [0, 100, 300, 600, 1000, 1500, 2500]
   const level = g?.level || 1
@@ -52,8 +53,6 @@ export default function CitizenDashboard() {
   const resolved   = complaints.filter(c => c.status === 'resolved').length
   const notificationItems = notifications?.notifications || []
   const unreadNotifications = notifications?.unread_count || 0
-  const modules = modulesData?.modules || []
-  const completedModules = modules.filter((module) => module.completed).length
 
   return (
     <div className="space-y-6">
@@ -187,12 +186,7 @@ export default function CitizenDashboard() {
           {/* Quick actions */}
           <SectionCard title="Quick Actions">
             <div className="grid grid-cols-2 gap-2 p-4">
-              {[
-                { href: '/citizen/report',      icon: '📸', label: 'Report Issue',   color: 'bg-green-50 hover:bg-green-100 border-green-100' },
-                { href: '/citizen/map',          icon: '🗺️', label: 'Find Centers',   color: 'bg-blue-50 hover:bg-blue-100 border-blue-100' },
-                { href: '/citizen/learn',        icon: '📚', label: 'Learn & Quiz',   color: 'bg-purple-50 hover:bg-purple-100 border-purple-100' },
-                { href: '/citizen/leaderboard',  icon: '🏆', label: 'Leaderboard',    color: 'bg-amber-50 hover:bg-amber-100 border-amber-100' },
-              ].map(a => (
+              {QUICK_ACTIONS.map(a => (
                 <Link key={a.href} href={a.href}>
                   <div className={`p-3 rounded-xl border ${a.color} text-center cursor-pointer transition-all`}>
                     <div className="text-2xl mb-1">{a.icon}</div>
@@ -220,32 +214,6 @@ export default function CitizenDashboard() {
               ))}
               {!notificationItems.length && (
                 <div className="text-sm text-slate-400 text-center py-4">No notifications yet.</div>
-              )}
-            </div>
-          </SectionCard>
-
-          <SectionCard
-            title="Learning Progress"
-            subtitle={`${completedModules}/${modules.length || 0} modules completed`}
-            action={<Link href="/citizen/learn"><button className="btn-secondary btn-sm">Continue</button></Link>}
-          >
-            <div className="p-4 space-y-3">
-              <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
-                <div
-                  className="h-full bg-green-600 rounded-full"
-                  style={{ width: `${modules.length ? Math.round((completedModules / modules.length) * 100) : 0}%` }}
-                />
-              </div>
-              {modules.slice(0, 3).map((module) => (
-                <div key={module.id} className="flex items-center justify-between gap-3 text-sm">
-                  <span className="text-slate-700 truncate">{module.title}</span>
-                  <span className={module.completed ? 'text-green-600 font-medium' : 'text-slate-400'}>
-                    {module.completed ? 'Done' : `+${module.points_reward || 0} pts`}
-                  </span>
-                </div>
-              ))}
-              {!modules.length && (
-                <div className="text-sm text-slate-400 text-center py-4">Learning modules will appear here.</div>
               )}
             </div>
           </SectionCard>

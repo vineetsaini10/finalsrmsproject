@@ -10,11 +10,13 @@ import Cookies from 'js-cookie'
 const NAV = [
   { href: '/citizen/dashboard', label: 'Dashboard',   icon: '🏠' },
   { href: '/citizen/report',    label: 'Report Waste', icon: '📸' },
+  { href: '/citizen/learn',     label: 'Learn',       icon: '📚' },
   { href: '/citizen/map',       label: 'Map & Centers',icon: '🗺️' },
-  { href: '/citizen/learn',     label: 'Learn & Quiz', icon: '📚' },
   { href: '/citizen/complaints',label: 'My Reports',   icon: '📋' },
   { href: '/citizen/leaderboard',label: 'Leaderboard', icon: '🏆' },
 ]
+
+const REPORT_ROUTE = '/citizen/report'
 
 export default function CitizenLayout({ children }) {
   const router   = useRouter()
@@ -137,7 +139,7 @@ export default function CitizenLayout({ children }) {
             </div>
           </div>
           <div className="flex items-center gap-3">
-            <Link href="/citizen/report">
+            <Link href={REPORT_ROUTE}>
               <button className="btn-primary btn-sm hidden sm:flex">
                 + Report Waste
               </button>

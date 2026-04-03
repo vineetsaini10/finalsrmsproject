@@ -148,18 +148,26 @@ export const mapAPI = {
   bins: (wardId) => api.get('/map/bins', { params: { ward_id: wardId } }),
 }
 
-// ── Training & Gamification ──────────────────────────────────────────────────
-export const trainingAPI = {
-  modules: (category) => api.get('/training/modules', { params: { category } }),
-  module: (id) => api.get(`/training/modules/${id}`),
-  completeModule: (id) => api.post(`/training/modules/${id}/complete`),
-  submitQuiz: (data) => api.post('/training/quiz/submit', data),
-  completeTask: (moduleId) => api.post(`/training/tasks/${moduleId}/complete`),
+export const learningAPI = {
+  modules: (category) => api.get('/learning/modules', { params: category ? { category } : {} }),
+  module: (id) => api.get(`/learning/module/${id}`),
 }
 
+export const quizAPI = {
+  getByModule: (moduleId) => api.get(`/quiz/${moduleId}`),
+  submit: (payload) => api.post('/quiz/submit', payload),
+  result: (moduleId) => api.get(`/quiz/${moduleId}/result`),
+}
+
+export const userAPI = {
+  progress: () => api.get('/user/progress'),
+}
+
+// ── Gamification ──────────────────────────────────────────────────────────────
 export const gamificationAPI = {
   leaderboard: (wardId) => api.get('/gamification/leaderboard', { params: { ward_id: wardId } }),
   me: () => api.get('/gamification/me'),
+  update: (payload) => api.post('/gamification/update', payload),
 }
 
 // ── Workers ──────────────────────────────────────────────────────────────────
