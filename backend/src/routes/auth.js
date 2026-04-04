@@ -78,13 +78,18 @@ router.post('/register', [
 
     const { name, phone, email, password, role = 'citizen' } = req.body;
     const normalizedPhone = normalizePhone(phone);
+    const candidates = phoneCandidates(phone);
+    logger.info(`[REGISTER DEBUG] phone=${phone} normalized=${normalizedPhone} candidates=${JSON.stringify(candidates)}`);
     const exists = await User.findOne({
       $or: [
-        { phone: { $in: phoneCandidates(phone) } },
+        { phone: { $in: candidates } },
         ...(email ? [{ email }] : []),
       ],
     });
-    if (exists) return fail(res, 409, 'User with this phone/email already exists');
+    if (exists) {
+      logger.info(`[REGISTER DEBUG] Duplicate found: existing phone=${exists.phone} email=${exists.email}`);
+      return fail(res, 409, 'User with this phone/email already exists');
+    }
 
     const passwordHash = await bcrypt.hash(password, 12);
     const otp = generateOTP();
