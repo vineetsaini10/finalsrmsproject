@@ -59,7 +59,7 @@ export default function App({ Component, pageProps }) {
             boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
           },
           success: { iconTheme: { primary: '#16a34a', secondary: '#fff' } },
-          error:   { iconTheme: { primary: '#ef4444', secondary: '#fff' } },
+          error: { iconTheme: { primary: '#ef4444', secondary: '#fff' } },
         }}
       />
     </QueryClientProvider>

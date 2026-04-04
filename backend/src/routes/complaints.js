@@ -90,12 +90,17 @@ async function uploadToStorage(buffer, mimetype) {
 }
 
 async function reverseGeocode(lat, lng) {
+  const latitude = Number(lat);
+  const longitude = Number(lng);
   try {
+    if (!process.env.GMAPS_API_KEY || process.env.GMAPS_API_KEY === 'your_google_maps_key') {
+      return `Lat: ${latitude.toFixed(5)}, Lng: ${longitude.toFixed(5)}`;
+    }
     const res = await axios.get(
-      `https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lng}&key=${process.env.GMAPS_API_KEY}`
+      `https://maps.googleapis.com/maps/api/geocode/json?latlng=${latitude},${longitude}&key=${process.env.GMAPS_API_KEY}`
     );
-    return res.data.results[0]?.formatted_address || '';
-  } catch { return ''; }
+    return res.data.results[0]?.formatted_address || `Lat: ${latitude.toFixed(5)}, Lng: ${longitude.toFixed(5)}`;
+  } catch { return `Lat: ${latitude.toFixed(5)}, Lng: ${longitude.toFixed(5)}`; }
 }
 
 // POST /complaints

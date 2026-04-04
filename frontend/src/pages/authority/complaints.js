@@ -35,6 +35,13 @@ const SORT_OPTIONS = [
   { value: 'priority_low', label: 'Priority low to high' },
 ]
 
+const resolveImageUrl = (path) => {
+  if (!path) return null;
+  if (path.startsWith('http')) return path;
+  const baseUrl = process.env.NEXT_PUBLIC_API_URL?.replace('/api/v1', '') || 'http://localhost:5000';
+  return `${baseUrl}${path}`;
+}
+
 export default function AuthorityComplaints() {
   const { user } = useAuthStore()
   const qc = useQueryClient()
@@ -184,6 +191,7 @@ export default function AuthorityComplaints() {
               <table className="table">
                 <thead>
                   <tr>
+                    <th>Photo</th>
                     <th>Issue</th>
                     <th>Location</th>
                     <th>Priority</th>
@@ -198,13 +206,34 @@ export default function AuthorityComplaints() {
                   {filteredComplaints.map(c => (
                     <tr key={c._id}>
                       <td>
+                        {c.imageUrl ? (
+                          <a href={resolveImageUrl(c.imageUrl)} target="_blank" rel="noreferrer" className="block w-12 h-12 rounded-lg overflow-hidden bg-slate-100 border border-slate-200 hover:opacity-80 transition-opacity">
+                            <img src={resolveImageUrl(c.imageUrl)} alt="complaint" className="w-full h-full object-cover" />
+                          </a>
+                        ) : (
+                          <div className="w-12 h-12 rounded-lg bg-slate-50 border border-slate-100 flex items-center justify-center text-slate-300 text-[10px]">
+                            No image
+                          </div>
+                        )}
+                      </td>
+                      <td>
                         <div className="flex items-center gap-2">
                           <span>{ISSUE_EMOJI[c.issueType] || '📍'}</span>
                           <span className="font-medium capitalize">{c.issueType.replace(/_/g, ' ')}</span>
                         </div>
                       </td>
-                      <td className="text-xs text-slate-500 max-w-[160px]">
-                        <span className="truncate block">{c.address || 'Location captured'}</span>
+                      <td className="text-xs text-slate-500 max-w-[180px]">
+                        <span className="font-medium text-slate-700 block truncate">{c.address || 'Location captured'}</span>
+                        {c.location?.coordinates && (
+                          <a 
+                            href={`https://www.google.com/maps?q=${c.location.coordinates[1]},${c.location.coordinates[0]}`}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="text-[10px] text-blue-500 hover:underline flex items-center gap-1 mt-0.5"
+                          >
+                            📍 {c.location.coordinates[1].toFixed(5)}, {c.location.coordinates[0].toFixed(5)}
+                          </a>
+                        )}
                       </td>
                       <td><PriorityBadge priority={c.priority} /></td>
                       <td>

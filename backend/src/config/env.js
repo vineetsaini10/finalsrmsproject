@@ -1,6 +1,10 @@
 const path = require('path');
 const envFile = process.env.NODE_ENV === 'test' ? '.env.test' : '.env';
-require('dotenv').config({ path: path.resolve(__dirname, '../../', envFile) });
+const shouldOverride = process.env.NODE_ENV !== 'production' && process.env.DOTENV_OVERRIDE !== 'false';
+require('dotenv').config({
+  path: path.resolve(__dirname, '../../', envFile),
+  override: shouldOverride,
+});
 
 module.exports = {
   NODE_ENV: process.env.NODE_ENV || 'development',

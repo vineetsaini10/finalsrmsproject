@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useRef, useEffect } from 'react'
 import { useRouter } from 'next/router'
 import { useDropzone } from 'react-dropzone'
 import toast from 'react-hot-toast'
@@ -27,12 +27,15 @@ export default function ReportPage() {
   const [geoLoading,  setGeoLoading]  = useState(false)
   const [submitting,  setSubmitting]  = useState(false)
 
-  const onDrop = useCallback(async (files) => {
-    const file = files[0]
-    if (!file) return
+  const [isCameraOpen, setIsCameraOpen] = useState(false)
+  const videoRef = useRef(null)
+  const canvasRef = useRef(null)
+
+  const handleImageSelect = async (file) => {
     setImage(file)
     setPreview(URL.createObjectURL(file))
     setClassifying(true)
+    setAiResult(null)
     try {
       const fd = new FormData(); fd.append('image', file)
       const response = await aiAPI.classify(fd)
@@ -42,6 +45,59 @@ export default function ReportPage() {
         toast.success(`AI: ${result.label} waste detected (${Math.round(result.confidence * 100)}%)`)
       }
     } catch { /* optional */ } finally { setClassifying(false) }
+  }
+
+  const onDrop = useCallback((files) => {
+    if (files[0]) handleImageSelect(files[0])
+  }, [])
+
+  const startCamera = async () => {
+    setIsCameraOpen(true)
+    setPreview(null)
+    setImage(null)
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ 
+        video: { facingMode: 'environment' } 
+      })
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream
+      }
+    } catch (err) {
+      toast.error('Could not access camera')
+      setIsCameraOpen(false)
+    }
+  }
+
+  const stopCamera = () => {
+    if (videoRef.current && videoRef.current.srcObject) {
+      videoRef.current.srcObject.getTracks().forEach(track => track.stop())
+      videoRef.current.srcObject = null
+    }
+    setIsCameraOpen(false)
+  }
+
+  const capturePhoto = () => {
+    if (!videoRef.current || !canvasRef.current) return
+    const video = videoRef.current
+    const canvas = canvasRef.current
+    canvas.width = video.videoWidth
+    canvas.height = video.videoHeight
+    const ctx = canvas.getContext('2d')
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
+    
+    canvas.toBlob((blob) => {
+      const file = new File([blob], 'camera-capture.jpg', { type: 'image/jpeg' })
+      handleImageSelect(file)
+      stopCamera()
+    }, 'image/jpeg', 0.9)
+  }
+
+  useEffect(() => {
+    return () => {
+      if (videoRef.current && videoRef.current.srcObject) {
+        videoRef.current.srcObject.getTracks().forEach(track => track.stop())
+      }
+    }
   }, [])
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
@@ -104,30 +160,59 @@ export default function ReportPage() {
         {/* Form — 2 cols */}
         <div className="lg:col-span-2 space-y-5">
           {/* Image upload */}
-          <div className="card p-6">
-            <h3 className="section-title">📸 Upload Photo</h3>
-            <div {...getRootProps()} className={`border-2 border-dashed rounded-xl p-6 text-center cursor-pointer transition-all
-              ${isDragActive ? 'border-green-500 bg-green-50' : 'border-slate-200 hover:border-green-400 hover:bg-slate-50'}`}>
-              <input {...getInputProps()} />
-              {preview ? (
-                <div className="relative">
-                  <img src={preview} alt="preview" className="w-full max-h-64 object-cover rounded-lg mx-auto" />
-                  {classifying && (
-                    <div className="absolute inset-0 bg-black/40 rounded-lg flex items-center justify-center">
-                      <span className="text-white font-medium">🤖 AI analyzing...</span>
-                    </div>
-                  )}
-                  <button onClick={e => { e.stopPropagation(); setImage(null); setPreview(null); setAiResult(null) }}
-                    className="absolute top-2 right-2 bg-red-500 text-white w-6 h-6 rounded-full text-xs hover:bg-red-600">✕</button>
-                </div>
-              ) : (
-                <div className="py-6">
-                  <div className="text-4xl mb-3">📷</div>
-                  <p className="text-slate-600 font-medium">Drag & drop photo or click to browse</p>
-                  <p className="text-slate-400 text-sm mt-1">JPG, PNG, WEBP · Max 5MB · AI will auto-classify waste type</p>
-                </div>
-              )}
+          <div className="card p-6 overflow-hidden">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="section-title mb-0">📸 Photo</h3>
+              <button 
+                onClick={() => isCameraOpen ? stopCamera() : startCamera()}
+                className="text-xs font-semibold text-green-600 hover:text-green-700 bg-green-50 hover:bg-green-100 px-3 py-1.5 rounded-full transition-all border border-green-100 flex items-center gap-1.5"
+              >
+                {isCameraOpen ? (
+                  <><span>✕</span> Close Camera</>
+                ) : (
+                  <><span>📷</span> Use Camera</>
+                )}
+              </button>
             </div>
+
+            {isCameraOpen ? (
+              <div className="relative rounded-xl overflow-hidden bg-black aspect-video max-h-[400px]">
+                <video ref={videoRef} autoPlay playsInline className="w-full h-full object-cover" />
+                <div className="absolute bottom-4 left-0 right-0 flex justify-center gap-4">
+                  <button onClick={capturePhoto} 
+                    className="w-14 h-14 rounded-full bg-white border-4 border-slate-300 flex items-center justify-center hover:scale-105 transition-transform active:scale-95 shadow-lg">
+                    <div className="w-10 h-10 rounded-full border-2 border-slate-800" />
+                  </button>
+                </div>
+                <canvas ref={canvasRef} className="hidden" />
+              </div>
+            ) : (
+              <div {...getRootProps()} className={`border-2 border-dashed rounded-xl p-6 text-center cursor-pointer transition-all
+                ${isDragActive ? 'border-green-500 bg-green-50' : 'border-slate-200 hover:border-green-400 hover:bg-slate-50'}`}>
+                <input {...getInputProps()} />
+                {preview ? (
+                  <div className="relative group">
+                    <img src={preview} alt="preview" className="w-full max-h-64 object-cover rounded-lg mx-auto" />
+                    {classifying && (
+                      <div className="absolute inset-0 bg-black/40 rounded-lg flex items-center justify-center">
+                        <span className="text-white font-medium animate-pulse">🤖 AI analyzing...</span>
+                      </div>
+                    )}
+                    <button onClick={e => { e.stopPropagation(); setImage(null); setPreview(null); setAiResult(null) }}
+                      className="absolute top-2 right-2 bg-red-500/80 hover:bg-red-600 text-white w-8 h-8 rounded-full flex items-center justify-center backdrop-blur-sm transition-all group-hover:scale-110">
+                      ✕
+                    </button>
+                  </div>
+                ) : (
+                  <div className="py-6">
+                    <div className="text-5xl mb-4">📸</div>
+                    <p className="text-slate-600 font-medium text-lg">Report with a photo</p>
+                    <p className="text-slate-400 text-sm mt-1">Drag & drop photo or click to browse</p>
+                    <p className="text-slate-400 text-xs mt-4 bg-slate-100 py-1 px-3 rounded-full inline-block">AI auto-detects waste category</p>
+                  </div>
+                )}
+              </div>
+            )}
             {aiResult && (
               <div className="mt-3 flex items-center gap-3 p-3 bg-green-50 rounded-xl border border-green-100">
                 <span className="text-xl">🤖</span>

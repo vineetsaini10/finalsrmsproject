@@ -6,17 +6,24 @@ echo   EcoIntellect: Comprehensive Waste Management System
 echo ============================================================
 echo.
 
+:: --- LOCAL DATABASE ---
+echo [1/4] Starting local MongoDB...
+call "%~dp0start_local_db.bat"
+if errorlevel 1 (
+  echo [WARN] Local MongoDB did not confirm startup. Backend may fail until MongoDB is available.
+)
+
 :: --- AI BACKEND ---
-echo [1/3] Starting AI/ML Backend (FastAPI)...
+echo [2/4] Starting AI/ML Backend (FastAPI)...
 :: Note: Using cmd /k to keep the window open so error messages are visible
 start "EcoIntellect-AI" cmd /k "cd /d %~dp0aiml && IF NOT EXIST venv (python -m venv venv) && call venv\Scripts\activate.bat && pip install --upgrade pip && pip install -r requirements.txt && uvicorn main:app --host 0.0.0.0 --port 8000 --reload"
 
 :: --- NODE BACKEND ---
-echo [2/3] Starting Node.js Backend (Express)...
+echo [3/4] Starting Node.js Backend (Express)...
 start "EcoIntellect-Backend" cmd /k "cd /d %~dp0backend && npm install && npm run dev"
 
 :: --- NEXT FRONTEND ---
-echo [3/3] Starting Frontend (Next.js)...
+echo [4/4] Starting Frontend (Next.js)...
 start "EcoIntellect-Frontend" cmd /k "cd /d %~dp0frontend && npm install && npm run dev"
 
 echo.
